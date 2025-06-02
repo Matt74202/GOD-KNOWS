@@ -22,6 +22,7 @@ import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 public class ERPNextService {
@@ -103,22 +104,35 @@ public class ERPNextService {
         }
     }
 
-    public List<Employee> getEmployees(String search) {
+public List<Employee> getEmployees(Map<String, String> filters) {
         try {
             checkSessionOrThrow();
             
-            String url = baseUrl + "resource/Employee?fields=[\"*\"]&filters=[[\"status\",\"=\",\"Active\"]]";
-            if (search != null && !search.isEmpty()) {
-                url = baseUrl + "resource/Employee?filters=[[\"status\",\"=\",\"Active\"],[\"first_name\",\"like\",\"%" + search + "%\"]]";
+            List<String> filterList = new ArrayList<>();
+            filterList.add("[\"status\",\"=\",\"Active\"]");
+            
+            if (filters != null && !filters.isEmpty()) {
+                for (Map.Entry<String, String> entry : filters.entrySet()) {
+                    String field = entry.getKey();
+                    String value = entry.getValue();
+                    if (value != null && !value.isEmpty()) {
+                        if (field.equals("date_of_joining") || field.equals("date_of_birth")) {
+                            filterList.add("[\"" + field + "\",\"=\",\"" + value + "\"]");
+                        } else {
+                            filterList.add("[\"" + field + "\",\"like\",\"%" + value + "%\"]");
+                        }
+                    }
+                }
             }
+
+            String filtersStr = filterList.isEmpty() ? "" : "&filters=[" + String.join(",", filterList) + "]";
+            String url = baseUrl + "resource/Employee?fields=[\"*\"]" + filtersStr;
 
             HttpHeaders headers = new HttpHeaders();
             headers.set("Accept", "application/json");
             HttpEntity<String> entity = new HttpEntity<>(headers);
 
             System.out.println("Fetching employees with URL: " + url);
-            System.out.println("Cookies sent: " + cookieStore.getCookies());
-
             ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, entity, Map.class);
 
             if (!response.getStatusCode().is2xxSuccessful()) {
@@ -138,6 +152,14 @@ public class ERPNextService {
                 emp.setFirstName((String) item.get("first_name"));
                 emp.setLastName((String) item.get("last_name"));
                 emp.setDepartment((String) item.get("department"));
+                emp.setEmployeeName((String) item.get("employee_name"));
+                emp.setDesignation((String) item.get("designation"));
+                emp.setCompany((String) item.get("company"));
+                emp.setDateOfJoining((String) item.get("date_of_joining"));
+                emp.setGender((String) item.get("gender"));
+                emp.setDateOfBirth((String) item.get("date_of_birth"));
+                emp.setEmploymentType((String) item.get("employment_type"));
+                emp.setStatus((String) item.get("status"));
                 employees.add(emp);
             }
             return employees;
@@ -154,64 +176,247 @@ public class ERPNextService {
         }
     }
 
-  public Employee getEmployeeDetails(String employeeId) {
-    try {
-        checkSessionOrThrow();
-        
-        String url = baseUrl + "resource/Employee/" + employeeId;
-        HttpHeaders headers = new HttpHeaders();
-        headers.set("Accept", "application/json");
-        HttpEntity<String> entity = new HttpEntity<>(headers);
+    public List<String> getGenderList() {
+        try {
+            checkSessionOrThrow();
+            String url = baseUrl + "resource/Gender?fields=[\"*\"]";
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("Accept", "application/json");
+            HttpEntity<String> entity = new HttpEntity<>(headers);
 
-        System.out.println("Fetching employee details with URL: " + url);
-        ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, entity, Map.class);
-        Map<String, Object> data = (Map<String, Object>) response.getBody().get("data");
-        Employee emp = new Employee();
-        emp.setName((String) data.get("name"));
-        emp.setFirstName((String) data.get("first_name"));
-        emp.setLastName((String) data.get("last_name"));
-        emp.setDepartment((String) data.get("department"));
+            System.out.println("Fetching gender list with URL: " + url);
+            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, entity, Map.class);
 
-        String salaryUrl = baseUrl + "resource/Salary Slip?filters=[[\"employee\",\"=\",\"" + employeeId + "\"]]";
-        System.out.println("Fetching salary slips with URL: " + salaryUrl);
-        ResponseEntity<Map> salaryResponse = restTemplate.exchange(salaryUrl, HttpMethod.GET, entity, Map.class);
-        List<Map<String, Object>> salaryData = (List<Map<String, Object>>) salaryResponse.getBody().get("data");
-        List<SalaryComponent> components = new ArrayList<>();
-        
-        if (salaryData != null && !salaryData.isEmpty()) {
-            for (Map<String, Object> slip : salaryData) {
-                List<Map<String, Object>> earnings = (List<Map<String, Object>>) slip.get("earnings");
-                if (earnings != null && !earnings.isEmpty()) {
-                    for (Map<String, Object> earning : earnings) {
-                        SalaryComponent comp = new SalaryComponent();
-                        comp.setComponent((String) earning.get("salary_component"));
-                        comp.setAmount(((Number) earning.get("amount")).doubleValue());
-                        comp.setMonth(((String) slip.get("posting_date")).substring(0, 7));
-                        components.add(comp);
-                    }
-                } else {
-                    System.out.println("No earnings data for salary slip of employee: " + employeeId);
-                }
+            if (!response.getStatusCode().is2xxSuccessful()) {
+                throw new RuntimeException("Failed to fetch gender list: HTTP " + response.getStatusCode());
             }
-        } else {
-            System.out.println("No salary slips found for employee: " + employeeId);
+
+            Map<String, Object> responseBody = response.getBody();
+            if (responseBody == null || !responseBody.containsKey("data")) {
+                throw new RuntimeException("Invalid response from ERPNext for gender list");
+            }
+
+            List<Map<String, Object>> data = (List<Map<String, Object>>) responseBody.get("data");
+            List<String> genders = data.stream()
+                    .map(item -> (String) item.get("gender"))
+                    .filter(gender -> gender != null)
+                    .distinct()
+                    .collect(Collectors.toList());
+            return genders;
+        } catch (HttpClientErrorException ex) {
+            System.err.println("HTTP Error fetching gender list: " + ex.getStatusCode() + " - " + ex.getResponseBodyAsString());
+            throw new RuntimeException("Failed to fetch gender list: " + ex.getResponseBodyAsString(), ex);
+        } catch (RestClientException ex) {
+            System.err.println("RestClientException fetching gender list: " + ex.getMessage());
+            throw new RuntimeException("Failed to connect to ERPNext: " + ex.getMessage(), ex);
+        } catch (Exception ex) {
+            System.err.println("Unexpected error fetching gender list: " + ex.getMessage());
+            ex.printStackTrace();
+            throw new RuntimeException("Unexpected error: " + ex.getMessage(), ex);
         }
-        
-        emp.setSalaryComponents(components);
-        return emp;
-    } catch (HttpClientErrorException ex) {
-        System.err.println("HTTP Error fetching employee details: " + ex.getStatusCode() + " - " + ex.getResponseBodyAsString());
-        throw new RuntimeException("Failed to fetch employee details: " + ex.getResponseBodyAsString(), ex);
-    } catch (RestClientException ex) {
-        System.err.println("RestClientException fetching employee details: " + ex.getMessage());
-        throw new RuntimeException("Failed to connect to ERPNext: " + ex.getMessage(), ex);
-    } catch (Exception ex) {
-        System.err.println("Unexpected error fetching employee details: " + ex.getMessage());
-        ex.printStackTrace();
-        throw new RuntimeException("Unexpected error: " + ex.getMessage(), ex);
-    }
     }
 
+    public List<String> getDepartmentList() {
+        try {
+            checkSessionOrThrow();
+            String url = baseUrl + "resource/Department?fields=[\"name\"]";
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("Accept", "application/json");
+            HttpEntity<String> entity = new HttpEntity<>(headers);
+
+            System.out.println("Fetching department list with URL: " + url);
+            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, entity, Map.class);
+
+            if (!response.getStatusCode().is2xxSuccessful()) {
+                throw new RuntimeException("Failed to fetch department list: HTTP " + response.getStatusCode());
+            }
+
+            Map<String, Object> responseBody = response.getBody();
+            if (responseBody == null || !responseBody.containsKey("data")) {
+                throw new RuntimeException("Invalid response from ERPNext for department list");
+            }
+
+            List<Map<String, Object>> data = (List<Map<String, Object>>) responseBody.get("data");
+            List<String> departments = data.stream()
+                    .map(item -> (String) item.get("name"))
+                    .filter(name -> name != null)
+                    .collect(Collectors.toList());
+            return departments;
+        } catch (HttpClientErrorException ex) {
+            System.err.println("HTTP Error fetching department list: " + ex.getStatusCode() + " - " + ex.getResponseBodyAsString());
+            throw new RuntimeException("Failed to fetch department list: " + ex.getResponseBodyAsString(), ex);
+        } catch (RestClientException ex) {
+            System.err.println("RestClientException fetching department list: " + ex.getMessage());
+            throw new RuntimeException("Failed to connect to ERPNext: " + ex.getMessage(), ex);
+        } catch (Exception ex) {
+            System.err.println("Unexpected error fetching department list: " + ex.getMessage());
+            ex.printStackTrace();
+            throw new RuntimeException("Unexpected error: " + ex.getMessage(), ex);
+        }
+    }
+
+    public List<String> getDesignationList() {
+        try {
+            checkSessionOrThrow();
+            String url = baseUrl + "resource/Designation?fields=[\"name\"]";
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("Accept", "application/json");
+            HttpEntity<String> entity = new HttpEntity<>(headers);
+
+            System.out.println("Fetching designation list with URL: " + url);
+            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, entity, Map.class);
+
+            if (!response.getStatusCode().is2xxSuccessful()) {
+                throw new RuntimeException("Failed to fetch designation list: HTTP " + response.getStatusCode());
+            }
+
+            Map<String, Object> responseBody = response.getBody();
+            if (responseBody == null || !responseBody.containsKey("data")) {
+                throw new RuntimeException("Invalid response from ERPNext for designation list");
+            }
+
+            List<Map<String, Object>> data = (List<Map<String, Object>>) responseBody.get("data");
+            List<String> designations = data.stream()
+                    .map(item -> (String) item.get("name"))
+                    .filter(name -> name != null)
+                    .collect(Collectors.toList());
+            return designations;
+        } catch (HttpClientErrorException ex) {
+            System.err.println("HTTP Error fetching designation list: " + ex.getStatusCode() + " - " + ex.getResponseBodyAsString());
+            throw new RuntimeException("Failed to fetch designation list: " + ex.getResponseBodyAsString(), ex);
+        } catch (RestClientException ex) {
+            System.err.println("RestClientException fetching designation list: " + ex.getMessage());
+            throw new RuntimeException("Failed to connect to ERPNext: " + ex.getMessage(), ex);
+        } catch (Exception ex) {
+            System.err.println("Unexpected error fetching designation list: " + ex.getMessage());
+            ex.printStackTrace();
+            throw new RuntimeException("Unexpected error: " + ex.getMessage(), ex);
+        }
+    }
+
+    public List<String> getCompanyList() {
+        try {
+            checkSessionOrThrow();
+            String url = baseUrl + "resource/Company?fields=[\"name\"]";
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("Accept", "application/json");
+            HttpEntity<String> entity = new HttpEntity<>(headers);
+
+            System.out.println("Fetching company list with URL: " + url);
+            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, entity, Map.class);
+
+            if (!response.getStatusCode().is2xxSuccessful()) {
+                throw new RuntimeException("Failed to fetch company list: HTTP " + response.getStatusCode());
+            }
+
+            Map<String, Object> responseBody = response.getBody();
+            if (responseBody == null || !responseBody.containsKey("data")) {
+                throw new RuntimeException("Invalid response from ERPNext for company list");
+            }
+
+            List<Map<String, Object>> data = (List<Map<String, Object>>) responseBody.get("data");
+            List<String> companies = data.stream()
+                    .map(item -> (String) item.get("name"))
+                    .filter(name -> name != null)
+                    .collect(Collectors.toList());
+            return companies;
+        } catch (HttpClientErrorException ex) {
+            System.err.println("HTTP Error fetching company list: " + ex.getStatusCode() + " - " + ex.getResponseBodyAsString());
+            throw new RuntimeException("Failed to fetch company list: " + ex.getResponseBodyAsString(), ex);
+        } catch (RestClientException ex) {
+            System.err.println("RestClientException fetching company list: " + ex.getMessage());
+            throw new RuntimeException("Failed to connect to ERPNext: " + ex.getMessage(), ex);
+        } catch (Exception ex) {
+            System.err.println("Unexpected error fetching company list: " + ex.getMessage());
+            ex.printStackTrace();
+            throw new RuntimeException("Unexpected error: " + ex.getMessage(), ex);
+        }
+    }
+
+public Employee getEmployeeDetails(String employeeId) {
+      try {
+            checkSessionOrThrow();
+            
+            String url = baseUrl + "resource/Employee/" + employeeId;
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("Accept", "application/json");
+            HttpEntity<String> entity = new HttpEntity<>(headers);
+
+            System.out.println("Fetching employee details with URL: " + url);
+            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, entity, Map.class);
+            Map<String, Object> data = (Map<String, Object>) response.getBody().get("data");
+            Employee emp = new Employee();
+            emp.setName((String) data.get("name"));
+            emp.setFirstName((String) data.get("first_name"));
+            emp.setLastName((String) data.get("last_name"));
+            emp.setDepartment((String) data.get("department"));
+            emp.setEmployeeName((String) data.get("employee_name"));
+            emp.setDesignation((String) data.get("designation"));
+            emp.setCompany((String) data.get("company"));
+            emp.setDateOfJoining((String) data.get("date_of_joining"));
+            emp.setGender((String) data.get("gender"));
+            emp.setDateOfBirth((String) data.get("date_of_birth"));
+            emp.setEmploymentType((String) data.get("employment_type"));
+            emp.setStatus((String) data.get("status"));
+
+            String salaryUrl = baseUrl + "resource/Salary Slip?fields=[\"name\",\"employee\",\"employee_name\",\"start_date\",\"end_date\",\"gross_pay\",\"net_pay\",\"status\",\"earnings\"]&filters=[[\"employee\",\"=\",\"" + employeeId + "\"]]";
+            System.out.println("Fetching salary slips with URL: " + salaryUrl);
+            ResponseEntity<Map> salaryResponse = restTemplate.exchange(salaryUrl, HttpMethod.GET, entity, Map.class);
+            List<Map<String, Object>> salaryData = (List<Map<String, Object>>) salaryResponse.getBody().get("data");
+            List<Payslip> payslips = new ArrayList<>();
+            
+            if (salaryData != null && !salaryData.isEmpty()) {
+                for (Map<String, Object> slip : salaryData) {
+                    Payslip payslip = new Payslip();
+                    payslip.setName((String) slip.get("name"));
+                    payslip.setEmployee((String) slip.get("employee"));
+                    payslip.setEmployeeName((String) slip.get("employee_name"));
+                    String startDate = (String) slip.get("start_date");
+                    payslip.setMonth(startDate != null ? startDate.substring(0, 7) : null);
+                    payslip.setStartDate(startDate);
+                    payslip.setEndDate((String) slip.get("end_date"));
+                    payslip.setGrossPay(((Number) slip.get("gross_pay")).doubleValue());
+                    payslip.setNetPay(((Number) slip.get("net_pay")).doubleValue());
+                    payslip.setStatus((String) slip.get("status"));
+                    List<SalaryComponent> components = new ArrayList<>();
+                    
+                    List<Map<String, Object>> earnings = (List<Map<String, Object>>) slip.get("earnings");
+                    double total = 0.0;
+                    if (earnings != null && !earnings.isEmpty()) {
+                        for (Map<String, Object> earning : earnings) {
+                            SalaryComponent comp = new SalaryComponent();
+                            comp.setComponent((String) earning.get("salary_component"));
+                            comp.setAmount(((Number) earning.get("amount")).doubleValue());
+                            comp.setMonth(startDate != null ? startDate.substring(0, 7) : null);
+                            components.add(comp);
+                            total += comp.getAmount();
+                        }
+                    } else {
+                        System.out.println("No earnings data for salary slip of employee: " + employeeId);
+                    }
+                    
+                    payslip.setComponents(components);
+                    payslip.setTotal(total);
+                    payslips.add(payslip);
+                }
+            } else {
+                System.out.println("No salary slips found for employee: " + employeeId);
+            }
+            
+            emp.setPayslips(payslips);
+            return emp;
+        } catch (HttpClientErrorException ex) {
+            System.err.println("HTTP Error fetching employee details: " + ex.getStatusCode() + " - " + ex.getResponseBodyAsString());
+            throw new RuntimeException("Failed to fetch employee details: " + ex.getResponseBodyAsString(), ex);
+        } catch (RestClientException ex) {
+            System.err.println("RestClientException fetching employee details: " + ex.getMessage());
+            throw new RuntimeException("Failed to connect to ERPNext: " + ex.getMessage(), ex);
+        } catch (Exception ex) {
+            System.err.println("Unexpected error fetching employee details: " + ex.getMessage());
+            ex.printStackTrace();
+            throw new RuntimeException("Unexpected error: " + ex.getMessage(), ex);
+        }
+    }
 public Payslip getPayslip(String employeeId, String month) {
         try {
             checkSessionOrThrow();
@@ -238,18 +443,15 @@ public Payslip getPayslip(String employeeId, String month) {
             payslip.setGrossPay(((Number) slip.get("gross_pay")).doubleValue());
             payslip.setNetPay(((Number) slip.get("net_pay")).doubleValue());
             payslip.setStatus((String) slip.get("status"));
-            List<SalaryComponent> components = new ArrayList<>();
+            List<Payslip> components = new ArrayList<>();
             List<Map<String, Object>> earnings = (List<Map<String, Object>>) slip.get("earnings");
             double total = 0.0;
             for (Map<String, Object> earning : earnings) {
-                SalaryComponent comp = new SalaryComponent();
-                comp.setComponent((String) earning.get("salary_component"));
-                comp.setAmount(((Number) earning.get("amount")).doubleValue());
+                Payslip comp = new Payslip();
+                comp.setStatus((String) earning.get("status"));
                 comp.setMonth(month);
                 components.add(comp);
-                total += comp.getAmount();
             }
-            payslip.setComponents(components);
             payslip.setTotal(total);
             return payslip;
         } catch (HttpClientErrorException ex) {

@@ -1,5 +1,7 @@
 package com.Eval.NewApp.service;
+
 import com.Eval.NewApp.model.Employee;
+import com.Eval.NewApp.model.Payslip;
 import com.Eval.NewApp.model.SalaryComponent;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
@@ -34,7 +36,7 @@ public class CSVImportService {
                     employee.setLastName(record.get("Last Name"));
                     employee.setDepartment(record.get("Department"));
 
-                    // Validate date format for salary component
+                    // Validate date format for payslip
                     String dateStr = record.get("Salary Date");
                     try {
                         DATE_FORMAT.setLenient(false);
@@ -48,10 +50,18 @@ public class CSVImportService {
                     component.setComponent(record.get("Salary Component"));
                     component.setAmount(Double.parseDouble(record.get("Amount")));
                     component.setMonth(dateStr.substring(0, 7)); // Extract yyyy-MM
-                    employee.setSalaryComponents(List.of(component));
+
+                    Payslip payslip = new Payslip();
+                    payslip.setEmployee(employee.getName());
+                    payslip.setMonth(dateStr.substring(0, 7));
+                    payslip.setComponents(List.of(component));
+                    payslip.setTotal(component.getAmount()); // Set total based on single component
+                    // Other payslip fields (e.g., name, employeeName, grossPay, netPay, status) can be set if provided in CSV or via ERPNext API
+
+                    employee.setPayslips(List.of(payslip));
 
                     employees.add(employee);
-                    // TODO: Send employee and salary data to ERPNext API
+                    // TODO: Send employee and payslip data to ERPNext API
                 } catch (Exception e) {
                     errors.add("Error processing record for employee " + record.get("Employee ID") + ": " + e.getMessage());
                 }
@@ -60,7 +70,7 @@ public class CSVImportService {
 
         // If no errors, you can proceed to send data to ERPNext
         if (errors.isEmpty()) {
-            // TODO: Implement API call to ERPNext to save employees and salary components
+            // TODO: Implement API call to ERPNext to save employees and payslips
         }
 
         return errors;

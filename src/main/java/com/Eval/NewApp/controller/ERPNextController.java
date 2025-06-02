@@ -9,7 +9,10 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Controller
 public class ERPNextController {
@@ -40,19 +43,61 @@ public class ERPNextController {
             return "login";
         }
     }
+    
 
-    @GetMapping("/employees")
-    public String listEmployees(@RequestParam(required = false) String search, Model model) {
+@GetMapping("/employees")
+    public String listEmployees(@RequestParam(required = false) String search,
+                               @RequestParam(required = false) String firstName,
+                               @RequestParam(required = false) String lastName,
+                               @RequestParam(required = false) String department,
+                               @RequestParam(required = false) String designation,
+                               @RequestParam(required = false) String company,
+                               @RequestParam(required = false) String gender,
+                               @RequestParam(required = false) String dateOfJoining,
+                               @RequestParam(required = false) String dateOfBirth,
+                               @RequestParam(required = false) String employmentType,
+                               Model model) {
         try {
-            List<Employee> employees = erpNextService.getEmployees(search);
+            Map<String, String> filters = new HashMap<>();
+            if (search != null && !search.isEmpty()) {
+                filters.put("first_name", search); // Maintain compatibility with existing search
+            }
+            if (firstName != null && !firstName.isEmpty()) filters.put("first_name", firstName);
+            if (lastName != null && !lastName.isEmpty()) filters.put("last_name", lastName);
+            if (department != null && !department.isEmpty()) filters.put("department", department);
+            if (designation != null && !designation.isEmpty()) filters.put("designation", designation);
+            if (company != null && !company.isEmpty()) filters.put("company", company);
+            if (gender != null && !gender.isEmpty()) filters.put("gender", gender);
+            if (dateOfJoining != null && !dateOfJoining.isEmpty()) filters.put("date_of_joining", dateOfJoining);
+            if (dateOfBirth != null && !dateOfBirth.isEmpty()) filters.put("date_of_birth", dateOfBirth);
+            if (employmentType != null && !employmentType.isEmpty()) filters.put("employment_type", employmentType);
+
+            List<Employee> employees = erpNextService.getEmployees(filters);
+            List<String> genderList = erpNextService.getGenderList();
+            List<String> departmentList = erpNextService.getDepartmentList();
+            List<String> designationList = erpNextService.getDesignationList();
+            List<String> companyList = erpNextService.getCompanyList();
+
             model.addAttribute("employees", employees);
             model.addAttribute("search", search);
+            model.addAttribute("firstName", firstName);
+            model.addAttribute("lastName", lastName);
+            model.addAttribute("department", department);
+            model.addAttribute("designation", designation);
+            model.addAttribute("company", company);
+            model.addAttribute("gender", gender);
+            model.addAttribute("dateOfJoining", dateOfJoining);
+            model.addAttribute("dateOfBirth", dateOfBirth);
+            model.addAttribute("employmentType", employmentType);
+            model.addAttribute("genderList", genderList);
+            model.addAttribute("departmentList", departmentList);
+            model.addAttribute("designationList", designationList);
+            model.addAttribute("companyList", companyList);
             return "employee_list";
         } catch (RuntimeException e) {
             return "redirect:/login?error=" + e.getMessage();
         }
     }
-
     @GetMapping("/employee/{id}")
     public String employeeDetails(@PathVariable String id, Model model) {
         try {

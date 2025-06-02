@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <title>Employee Details</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.3/jspdf.plugin.autotable.min.js"></script>
 </head>
 <body class="bg-gray-100 p-6">
     <h2 class="text-2xl font-bold mb-4">Employee Details</h2>
@@ -12,28 +14,139 @@
         <p><strong>First Name:</strong> <span th:text="${employee.firstName}"></span></p>
         <p><strong>Last Name:</strong> <span th:text="${employee.lastName}"></span></p>
         <p><strong>Department:</strong> <span th:text="${employee.department}"></span></p>
-        <h3 class="text-xl font-bold mt-4">Salary Components</h3>
-        <table class="w-full border-collapse border mt-2">
+        <p><strong>Designation:</strong> <span th:text="${employee.designation}"></span></p>
+        <p><strong>Company:</strong> <span th:text="${employee.company}"></span></p>
+        <p><strong>Date of Joining:</strong> <span th:text="${employee.dateOfJoining}"></span></p>
+        <p><strong>Gender:</strong> <span th:text="${employee.gender}"></span></p>
+        <p><strong>Date of Birth:</strong> <span th:text="${employee.dateOfBirth}"></span></p>
+        <p><strong>Employment Type:</strong> <span th:text="${employee.employmentType}"></span></p>
+        <p><strong>Status:</strong> <span th:text="${employee.status}"></span></p>
+        <h3 class="text-xl font-bold mt-4">Payslips</h3>
+        <div class="mb-4 flex space-x-4">
+            <a th:href="@{/employee/export-payslips/{id}(id=${employee.name})}" class="bg-green-500 text-white p-2 rounded hover:bg-green-600">Export Payslips to CSV</a>
+            <button onclick="exportToPDF()" class="bg-blue-600 text-white p-2 rounded hover:bg-blue-700">Export to PDF</button>
+        </div>
+        <table id="payslipsTable" class="w-full border-collapse border mt-2">
             <thead>
                 <tr class="bg-gray-200">
+                    <th class="border p-2">Payslip ID</th>
                     <th class="border p-2">Month</th>
-                    <th class="border p-2">Component</th>
-                    <th class="border p-2">Amount</th>
+                    <th class="border p-2">Status</th>
+                    <th class="border p-2">Gross Pay</th>
+                    <th class="border p-2">Net Pay</th>
+                    <th class="border p-2">Total Earnings</th>
                     <th class="border p-2">Actions</th>
                 </tr>
             </thead>
             <tbody>
-                <tr th:each="component : ${employee.salaryComponents}">
-                    <td class="border p-2" th:text="${component.month}"></td>
-                    <td class="border p-2" th:text="${component.component}"></td>
-                    <td class="border p-2" th:text="${component.amount}"></td>
+                <tr th:each="payslip : ${employee.payslips}">
+                    <td class="border p-2" th:text="${payslip.name}"></td>
+                    <td class="border p-2" th:text="${payslip.month}"></td>
+                    <td class="border p-2" th:text="${payslip.status}"></td>
+                    <td class="border p-2" th:text="${payslip.grossPay}"></td>
+                    <td class="border p-2" th:text="${payslip.netPay}"></td>
+                    <td class="border p-2" th:text="${payslip.total}"></td>
                     <td class="border p-2">
-                        <a th:href="@{/payslip/{employeeId}/{month}(employeeId=${employee.name},month=${component.month})}" class="text-blue-500 hover:underline">View Payslip</a>
+                        <a th:href="@{/payslip/{employeeId}/{month}(employeeId=${employee.name},month=${payslip.month})}" class="text-blue-500 hover:underline">View Payslip</a>
                     </td>
                 </tr>
             </tbody>
         </table>
     </div>
     <a th:href="@{/employees}" class="mt-4 inline-block bg-blue-500 text-white p-2 rounded hover:bg-blue-600">Back to Employees</a>
+
+    <script>
+        function exportToPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            // Set document properties
+            doc.setProperties({
+                title: 'Employee Details',
+                author: 'ERPNext Application',
+                creator: 'jsPDF'
+            });
+
+            // Add title
+            doc.setFontSize(18);
+            doc.setFont('helvetica', 'bold');
+            doc.text('Employee Details', 14, 20);
+
+            // Add employee information
+            doc.setFontSize(12);
+            doc.setFont('helvetica', 'normal');
+            const employeeInfo = [
+                `ID: ${document.querySelector('p:nth-child(1) span').textContent}`,
+                `First Name: ${document.querySelector('p:nth-child(2) span').textContent}`,
+                `Last Name: ${document.querySelector('p:nth-child(3) span').textContent}`,
+                `Department: ${document.querySelector('p:nth-child(4) span').textContent}`,
+                `Designation: ${document.querySelector('p:nth-child(5) span').textContent}`,
+                `Company: ${document.querySelector('p:nth-child(6) span').textContent}`,
+                `Date of Joining: ${document.querySelector('p:nth-child(7) span').textContent}`,
+                `Gender: ${document.querySelector('p:nth-child(8) span').textContent}`,
+                `Date of Birth: ${document.querySelector('p:nth-child(9) span').textContent}`,
+                `Employment Type: ${document.querySelector('p:nth-child(10) span').textContent}`,
+                `Status: ${document.querySelector('p:nth-child(11) span').textContent}`
+            ];
+            doc.text(employeeInfo, 14, 30);
+
+            // Add payslips table
+            doc.setFontSize(14);
+            doc.setFont('helvetica', 'bold');
+            doc.text('Payslips', 14, 90);
+
+            const table = document.getElementById('payslipsTable');
+            const rows = [];
+            const headers = ['Payslip ID', 'Month', 'Status', 'Gross Pay', 'Net Pay', 'Total Earnings'];
+
+            // Collect table data (exclude Actions column)
+            const trs = table.querySelectorAll('tbody tr');
+            trs.forEach(tr => {
+                const tds = tr.querySelectorAll('td');
+                const row = [];
+                for (let i = 0; i < tds.length - 1; i++) { // Skip last column (Actions)
+                    row.push(tds[i].textContent);
+                }
+                rows.push(row);
+            });
+
+            // Add table to PDF using autoTable
+            doc.autoTable({
+                startY: 100,
+                head: [headers],
+                body: rows,
+                theme: 'grid',
+                headStyles: {
+                    fillColor: [200, 200, 200],
+                    textColor: [0, 0, 0],
+                    fontStyle: 'bold'
+                },
+                styles: {
+                    font: 'helvetica',
+                    fontSize: 10,
+                    cellPadding: 2,
+                    lineColor: [0, 0, 0],
+                    lineWidth: 0.1
+                },
+                columnStyles: {
+                    3: { halign: 'right' }, // Gross Pay
+                    4: { halign: 'right' }, // Net Pay
+                    5: { halign: 'right' }  // Total Earnings
+                }
+            });
+
+            // Add footer with date
+            const today = new Date().toLocaleDateString('en-US', {
+                year: 'numeric', month: 'long', day: 'numeric'
+            });
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'italic');
+            doc.text(`Generated on ${today}`, 14, doc.internal.pageSize.height - 10);
+
+            // Save the PDF
+            const employeeId = document.querySelector('p:nth-child(1) span').textContent;
+            doc.save(`employee_${employeeId}_details.pdf`);
+        }
+    </script>
 </body>
 </html>

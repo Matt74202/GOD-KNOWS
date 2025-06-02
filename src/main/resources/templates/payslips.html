@@ -14,20 +14,34 @@
     <table class="w-full border-collapse border">
         <thead>
             <tr class="bg-gray-200">
+                <th class="border p-2">Payslip ID</th>
+                <th class="border p-2">Employee ID</th>
                 <th class="border p-2">Employee</th>
+                <th class="border p-2">Start Date</th>
+                <th class="border p-2">End Date</th>
                 <th class="border p-2">Month</th>
                 <th class="border p-2">Components</th>
                 <th class="border p-2">Total</th>
+                <th class="border p-2">Gross Pay</th>
+                <th class="border p-2">Net Pay</th>
+                <th class="border p-2">Status</th>
             </tr>
         </thead>
         <tbody>
             <tr th:each="payslip : ${payslips}">
+                <td class="border p-2" th:text="${payslip.name}"></td>
+                <td class="border p-2" th:text="${payslip.employee}"></td>
                 <td class="border p-2" th:text="${payslip.employeeName}"></td>
+                <td class="border p-2" th:text="${payslip.startDate}"></td>
+                <td class="border p-2" th:text="${payslip.endDate}"></td>
                 <td class="border p-2" th:text="${payslip.month}"></td>
                 <td class="border p-2">
                     <span th:each="component, iterStat : ${payslip.components}" th:text="${component.component} + ': ' + ${component.amount} + (${iterStat.last} ? '' : ', ')"></span>
                 </td>
                 <td class="border p-2" th:text="${payslip.total}"></td>
+                <td class="border p-2" th:text="${payslip.grossPay}"></td>
+                <td class="border p-2" th:text="${payslip.netPay}"></td>
+                <td class="border p-2" th:text="${payslip.status}"></td>
             </tr>
         </tbody>
     </table>

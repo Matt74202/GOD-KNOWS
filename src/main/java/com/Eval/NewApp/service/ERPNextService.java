@@ -18,6 +18,7 @@ import org.springframework.web.client.RestTemplate;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -211,11 +212,11 @@ public class ERPNextService {
     }
     }
 
-    public Payslip getPayslip(String employeeId, String month) {
+public Payslip getPayslip(String employeeId, String month) {
         try {
             checkSessionOrThrow();
             
-            String url = baseUrl + "resource/Salary Slip?filters=[[\"employee\",\"=\",\"" + employeeId + "\"],[\"posting_date\",\"like\",\"" + month + "%\"]]";
+            String url = baseUrl + "resource/Salary Slip?fields=[\"name\",\"employee\",\"employee_name\",\"start_date\",\"end_date\",\"gross_pay\",\"net_pay\",\"status\",\"earnings\"]&filters=[[\"employee\",\"=\",\"" + employeeId + "\"],[\"posting_date\",\"like\",\"" + month + "%\"]]";
             HttpHeaders headers = new HttpHeaders();
             headers.set("Accept", "application/json");
             HttpEntity<String> entity = new HttpEntity<>(headers);
@@ -228,8 +229,15 @@ public class ERPNextService {
             }
             Map<String, Object> slip = data.get(0);
             Payslip payslip = new Payslip();
+            payslip.setName((String) slip.get("name"));
+            payslip.setEmployee((String) slip.get("employee"));
             payslip.setEmployeeName((String) slip.get("employee_name"));
             payslip.setMonth(month);
+            payslip.setStartDate((String) slip.get("start_date"));
+            payslip.setEndDate((String) slip.get("end_date"));
+            payslip.setGrossPay(((Number) slip.get("gross_pay")).doubleValue());
+            payslip.setNetPay(((Number) slip.get("net_pay")).doubleValue());
+            payslip.setStatus((String) slip.get("status"));
             List<SalaryComponent> components = new ArrayList<>();
             List<Map<String, Object>> earnings = (List<Map<String, Object>>) slip.get("earnings");
             double total = 0.0;
@@ -257,72 +265,80 @@ public class ERPNextService {
         }
     }
 
-public List<Payslip> getMonthlyPayslips(String month) {
-    try {
-        checkSessionOrThrow();
-        
-        // Validate month format (should be YYYY-MM)
-        if (!month.matches("\\d{4}-\\d{2}")) {
-            throw new IllegalArgumentException("Month parameter must be in YYYY-MM format");
-        }
-        
-        // Calculate start and end dates for the month
-        java.time.YearMonth yearMonth = java.time.YearMonth.parse(month);
-        String startDate = month + "-01";
-        String endDate = yearMonth.atEndOfMonth().toString(); // Get the last day of the month
-        
-        String url = baseUrl + "resource/Salary Slip?filters=[[\"posting_date\",\"between\",[\"" 
-            + startDate + "\",\"" + endDate + "\"]]]";
+    public List<Payslip> getMonthlyPayslips(String month) {
+        try {
+            checkSessionOrThrow();
             
-        HttpHeaders headers = new HttpHeaders();
-        headers.set("Accept", "application/json");
-        HttpEntity<String> entity = new HttpEntity<>(headers);
-
-        System.out.println("Fetching monthly payslips with URL: " + url);
-        ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, entity, Map.class);
-        List<Map<String, Object>> data = (List<Map<String, Object>>) response.getBody().get("data");
-        if (data == null) {
-            System.out.println("No payslip data returned from ERPNext");
-            return new ArrayList<>();
-        }
-        
-        List<Payslip> payslips = new ArrayList<>();
-        for (Map<String, Object> slip : data) {
-            Payslip payslip = new Payslip();
-            payslip.setEmployeeName((String) slip.get("employee_name"));
-            payslip.setMonth(month);
-            List<SalaryComponent> components = new ArrayList<>();
-            
-            List<Map<String, Object>> earnings = (List<Map<String, Object>>) slip.get("earnings");
-            double total = 0.0;
-            if (earnings != null && !earnings.isEmpty()) {
-                for (Map<String, Object> earning : earnings) {
-                    SalaryComponent comp = new SalaryComponent();
-                    comp.setComponent((String) earning.get("salary_component"));
-                    comp.setAmount(((Number) earning.get("amount")).doubleValue());
-                    comp.setMonth(month);
-                    components.add(comp);
-                    total += comp.getAmount();
-                }
+            String url;
+            if (month == null || month.isEmpty()) {
+                url = baseUrl + "resource/Salary Slip?fields=[\"name\",\"employee\",\"employee_name\",\"start_date\",\"end_date\",\"gross_pay\",\"net_pay\",\"status\",\"earnings\"]";
             } else {
-                System.out.println("No earnings data for employee: " + slip.get("employee_name"));
+                if (!month.matches("\\d{4}-\\d{2}")) {
+                    throw new IllegalArgumentException("Month parameter must be in YYYY-MM format");
+                }
+                YearMonth yearMonth = YearMonth.parse(month);
+                String startDate = month + "-01";
+                String endDate = yearMonth.atEndOfMonth().toString();
+                url = baseUrl + "resource/Salary Slip?fields=[\"name\",\"employee\",\"employee_name\",\"start_date\",\"end_date\",\"gross_pay\",\"net_pay\",\"status\",\"earnings\"]&filters=[[\"posting_date\",\"between\",[\"" 
+                    + startDate + "\",\"" + endDate + "\"]]]";
             }
             
-            payslip.setComponents(components);
-            payslip.setTotal(total);
-            payslips.add(payslip);
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("Accept", "application/json");
+            HttpEntity<String> entity = new HttpEntity<>(headers);
+
+            System.out.println("Fetching monthly payslips with URL: " + url);
+            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, entity, Map.class);
+            List<Map<String, Object>> data = (List<Map<String, Object>>) response.getBody().get("data");
+            if (data == null) {
+                System.out.println("No payslip data returned from ERPNext");
+                return new ArrayList<>();
+            }
+            
+            List<Payslip> payslips = new ArrayList<>();
+            for (Map<String, Object> slip : data) {
+                Payslip payslip = new Payslip();
+                payslip.setName((String) slip.get("name"));
+                payslip.setEmployee((String) slip.get("employee"));
+                payslip.setEmployeeName((String) slip.get("employee_name"));
+                String startDate = (String) slip.get("start_date");
+                payslip.setMonth(month != null ? month : startDate != null ? startDate.substring(0, 7) : null);
+                payslip.setStartDate(startDate);
+                payslip.setEndDate((String) slip.get("end_date"));
+                payslip.setGrossPay(((Number) slip.get("gross_pay")).doubleValue());
+                payslip.setNetPay(((Number) slip.get("net_pay")).doubleValue());
+                payslip.setStatus((String) slip.get("status"));
+                List<SalaryComponent> components = new ArrayList<>();
+                
+                List<Map<String, Object>> earnings = (List<Map<String, Object>>) slip.get("earnings");
+                double total = 0.0;
+                if (earnings != null && !earnings.isEmpty()) {
+                    for (Map<String, Object> earning : earnings) {
+                        SalaryComponent comp = new SalaryComponent();
+                        comp.setComponent((String) earning.get("salary_component"));
+                        comp.setAmount(((Number) earning.get("amount")).doubleValue());
+                        comp.setMonth(month != null ? month : startDate != null ? startDate.substring(0, 7) : null);
+                        components.add(comp);
+                        total += comp.getAmount();
+                    }
+                } else {
+                    System.out.println("No earnings data for employee: " + slip.get("employee_name"));
+                }
+                
+                payslip.setComponents(components);
+                payslip.setTotal(total);
+                payslips.add(payslip);
+            }
+            return payslips;
+        } catch (HttpClientErrorException ex) {
+            System.err.println("HTTP Error fetching monthly payslips: " + ex.getStatusCode() + " - " + ex.getResponseBodyAsString());
+            throw new RuntimeException("Failed to fetch monthly payslips: " + ex.getResponseBodyAsString(), ex);
+        } catch (RestClientException ex) {
+            System.err.println("RestClientException fetching monthly payslips: " + ex.getMessage());
+            throw new RuntimeException("Failed to connect to ERPNext: " + ex.getMessage(), ex);
+        } catch (Exception ex) {
+            System.err.println("Unexpected error fetching monthly payslips: " + ex.getMessage());
+            ex.printStackTrace();
+            throw new RuntimeException("Unexpected error: " + ex.getMessage(), ex);
         }
-        return payslips;
-    } catch (HttpClientErrorException ex) {
-        System.err.println("HTTP Error fetching monthly payslips: " + ex.getStatusCode() + " - " + ex.getResponseBodyAsString());
-        throw new RuntimeException("Failed to fetch monthly payslips: " + ex.getResponseBodyAsString(), ex);
-    } catch (RestClientException ex) {
-        System.err.println("RestClientException fetching monthly payslips: " + ex.getMessage());
-        throw new RuntimeException("Failed to connect to ERPNext: " + ex.getMessage(), ex);
-    } catch (Exception ex) {
-        System.err.println("Unexpected error fetching monthly payslips: " + ex.getMessage());
-        ex.printStackTrace();
-        throw new RuntimeException("Unexpected error: " + ex.getMessage(), ex);
-    }
-}
-}
+    }}

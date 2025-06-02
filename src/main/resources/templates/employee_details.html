@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Employee Details</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100 p-6">
+    <h2 class="text-2xl font-bold mb-4">Employee Details</h2>
+    <div class="bg-white p-4 rounded shadow-md">
+        <p><strong>ID:</strong> <span th:text="${employee.name}"></span></p>
+        <p><strong>First Name:</strong> <span th:text="${employee.firstName}"></span></p>
+        <p><strong>Last Name:</strong> <span th:text="${employee.lastName}"></span></p>
+        <p><strong>Department:</strong> <span th:text="${employee.department}"></span></p>
+        <h3 class="text-xl font-bold mt-4">Salary Components</h3>
+        <table class="w-full border-collapse border mt-2">
+            <thead>
+                <tr class="bg-gray-200">
+                    <th class="border p-2">Month</th>
+                    <th class="border p-2">Component</th>
+                    <th class="border p-2">Amount</th>
+                    <th class="border p-2">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr th:each="component : ${employee.salaryComponents}">
+                    <td class="border p-2" th:text="${component.month}"></td>
+                    <td class="border p-2" th:text="${component.component}"></td>
+                    <td class="border p-2" th:text="${component.amount}"></td>
+                    <td class="border p-2">
+                        <a th:href="@{/payslip/{employeeId}/{month}(employeeId=${employee.name},month=${component.month})}" class="text-blue-500 hover:underline">View Payslip</a>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    <a th:href="@{/employees}" class="mt-4 inline-block bg-blue-500 text-white p-2 rounded hover:bg-blue-600">Back to Employees</a>
+</body>
+</html>

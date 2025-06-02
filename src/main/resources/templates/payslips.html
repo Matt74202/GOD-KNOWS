@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Monthly Payslips</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100 p-6">
+    <h2 class="text-2xl font-bold mb-4">Monthly Payslips</h2>
+    <form th:action="@{/payslips}" method="get" class="mb-4">
+        <input type="month" name="month" th:value="${month}" class="p-2 border rounded">
+        <button type="submit" class="bg-blue-500 text-white p-2 rounded hover:bg-blue-600">Filter</button>
+    </form>
+    <table class="w-full border-collapse border">
+        <thead>
+            <tr class="bg-gray-200">
+                <th class="border p-2">Employee</th>
+                <th class="border p-2">Month</th>
+                <th class="border p-2">Components</th>
+                <th class="border p-2">Total</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr th:each="payslip : ${payslips}">
+                <td class="border p-2" th:text="${payslip.employeeName}"></td>
+                <td class="border p-2" th:text="${payslip.month}"></td>
+                <td class="border p-2">
+                    <span th:each="component, iterStat : ${payslip.components}" th:text="${component.component} + ': ' + ${component.amount} + (${iterStat.last} ? '' : ', ')"></span>
+                </td>
+                <td class="border p-2" th:text="${payslip.total}"></td>
+            </tr>
+        </tbody>
+    </table>
+    <a th:href="@{/employees}" class="mt-4 inline-block bg-blue-500 text-white p-2 rounded hover:bg-blue-600">Back to Employees</a>
+</body>
+</html>

@@ -91,6 +91,7 @@ public class Employee {
         map.put("name", name);
         map.put("first_name", firstName);
         map.put("last_name", lastName);
+        map.put("employee_number", name); // Utiliser Ref comme employee_number
         map.put("gender", genre);
         map.put("date_of_joining", dateEmbauche);
         map.put("date_of_birth", dateNaissance);

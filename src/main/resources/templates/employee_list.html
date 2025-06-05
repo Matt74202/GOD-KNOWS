@@ -65,12 +65,14 @@
         <button type="submit" class="mt-4 bg-blue-500 text-white p-2 rounded hover:bg-blue-600">Filter</button>
     </form>
 
-    <div th:if="${message}" class="text-green-500 mb-4" th:text="${message}"></div>
-    <div th:if="${errors}" class="text-red-500 mb-4">
-        <ul>
-            <li th:each="error : ${errors}" th:text="${error}"></li>
-        </ul>
-    </div>
+  <div th:if="${message}" class="text-green-500 mb-4" th:text="${message}"></div>
+<div th:if="${importResults}" class="mb-4">
+    <h3 class="font-bold">Import Results:</h3>
+    <ul>
+        <li th:each="result : ${importResults}" th:text="${result}"></li>
+    </ul>
+</div>
+<div th:if="${error}" class="text-red-500 mb-4" th:text="${error}"></div>
 
     <table class="w-full border-collapse border">
         <thead>

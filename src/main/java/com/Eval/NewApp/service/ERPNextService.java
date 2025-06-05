@@ -637,7 +637,9 @@ public class ERPNextService {
                 YearMonth yearMonth = YearMonth.parse(month);
                 String startDate = month + "-01";
                 String endDate = yearMonth.atEndOfMonth().toString();
-                endpoint = "resource/Salary Slip?fields=[\"name\",\"employee\",\"employee_name\",\"start_date\",\"end_date\",\"gross_pay\",\"net_pay\",\"status\",\"earnings\"]&filters=[[\\\"posting_date\\\",\\\"between\\\",[\\\"" + startDate + "\\\",\\\"" + endDate + "\\\"]]]";
+                // Construct the filters JSON string
+                String filters = "[[\"posting_date\",\"between\",[\"" + startDate + "\",\"" + endDate + "\"]]]";
+                endpoint = "resource/Salary Slip?fields=[\"name\",\"employee\",\"employee_name\",\"start_date\",\"end_date\",\"gross_pay\",\"net_pay\",\"status\",\"earnings\"]&filters=" + filters;
             }
             String url = baseUrl + endpoint;
             System.out.println("Constructed URL: " + url);

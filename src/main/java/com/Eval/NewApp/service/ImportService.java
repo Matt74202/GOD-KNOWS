@@ -79,7 +79,7 @@ public class ImportService {
                 logger.info("Creating company {}...", company);
                 Map<String, Object> companyData = new HashMap<>();
                 companyData.put("company_name", company);
-                companyData.put("default_currency", "MGA");
+                companyData.put("default_currency", "MAD");
                 companyData.put("country", "Madagascar");
 
                 String holidayListName = createDefaultHolidayList(company);
@@ -424,7 +424,7 @@ public class ImportService {
                 Map<String, Object> companyData = new HashMap<>();
                 companyData.put("name", company);
                 companyData.put("company_name", company);
-                companyData.put("default_currency", "MGA");
+                companyData.put("default_currency", "MAD");
                 companyData.put("country", "Madagascar");
 
                 String holidayListName = createDefaultHolidayList(company);
@@ -830,8 +830,10 @@ public class ImportService {
                         continue;
                     }
 
+                    // Vérifier et créer une Salary Structure Assignment si nécessaire
                     String payrollDate = utilService.formatDate(utilService.getFormattedDate(salarySlip.getMonth()), "yyyy-MM-dd");
-                    if (!checkSalaryStructureAssignmentExists(employeeId, salarySlip.getSalaryStructure(), payrollDate)) {
+                    double baseSalary = Double.parseDouble(salarySlip.getBaseSalary());
+                    if (!checkSalaryStructureAssignmentExists(employeeId, salarySlip.getSalaryStructure(), payrollDate, baseSalary)) {
                         boolean assignmentCreated = createSalaryStructureAssignment(salarySlip, lineNumber, results);
                         if (!assignmentCreated) {
                             results.add(String.format("Line %d: Failed to create Salary Structure Assignment for employee %s (Ref: %s)", lineNumber, employeeId, ref));
@@ -848,14 +850,6 @@ public class ImportService {
                     headers.setContentType(MediaType.APPLICATION_JSON);
 
                     Map<String, Object> payload = salarySlip.toMap(slipExists);
-                    // Minimal payload, let ERPNext calculate components
-                    payload.put("employee", employeeId);
-                    payload.put("payroll_date", payrollDate);
-                    payload.put("salary_structure", salarySlip.getSalaryStructure());
-                    payload.put("gross_pay", Double.parseDouble(salarySlip.getBaseSalary()));
-                    payload.put("currency", "MGA"); // Adjust based on company settings
-                    payload.put("exchange_rate", 1.0);
-
                     logger.info("Payload for Salary Slip: {}", payload);
                     HttpEntity<Map<String, Object>> entity = new HttpEntity<>(payload, headers);
 
@@ -1043,10 +1037,10 @@ public class ImportService {
             ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, entity, Map.class);
 
             Map<String, Object> data = (Map<String, Object>) response.getBody().get("data");
-            return (String) data.getOrDefault("default_currency", "MGA");
+            return (String) data.getOrDefault("default_currency", "MAD");
         } catch (Exception e) {
             logger.error("Error fetching currency for company {}: {}", companyName, e.getMessage());
-            return "MGA";
+            return "MAD";
         }
     }
 
@@ -1091,13 +1085,16 @@ public class ImportService {
         }
     }
 
-    private boolean checkSalaryStructureAssignmentExists(String employeeId, String salaryStructure, String payrollDate) {
+    private boolean checkSalaryStructureAssignmentExists(String employeeId, String salaryStructure, String payrollDate, double baseSalary) {
         try {
             erpNextService.checkSessionOrThrow();
 
             String endpoint = "resource/Salary Structure Assignment";
-            String filters = String.format("[[\"employee\",\"=\",\"%s\"],[\"salary_structure\",\"=\",\"%s\"],[\"from_date\",\"<=\",\"%s\"]]", employeeId, salaryStructure, payrollDate);
-            String url = baseUrl + endpoint + "?fields=[\"name\"]&filters=" + filters;
+            String filters = String.format(
+                "[[\"employee\",\"=\",\"%s\"],[\"salary_structure\",\"=\",\"%s\"],[\"from_date\",\"=\",\"%s\"],[\"base\",\"=\",\"%s\"]]",
+                employeeId, salaryStructure, payrollDate, baseSalary
+            );
+            String url = baseUrl + endpoint + "?fields=[\"name\",\"base\"]&filters=" + filters;
             logger.info("Checking salary structure assignment existence at: {}", url);
 
             HttpHeaders headers = new HttpHeaders();
@@ -1116,15 +1113,17 @@ public class ImportService {
             logger.info("Raw response from /api/{}: {}", endpoint, rawResponse);
 
             List<Map<String, Object>> assignmentData = (List<Map<String, Object>>) response.getBody().get("data");
-            logger.info("Salary Structure Assignment for employee {} and payroll date {} exists: {}", employeeId, payrollDate, !assignmentData.isEmpty());
-            return !assignmentData.isEmpty();
+            boolean exists = !assignmentData.isEmpty();
+            logger.info("Salary Structure Assignment for employee {}, structure {}, date {}, base {} exists: {}", 
+                        employeeId, salaryStructure, payrollDate, baseSalary, exists);
+            return exists;
         } catch (HttpClientErrorException e) {
-            logger.error("HTTP Error checking Salary Structure Assignment for employee {} and payroll date {}: {}", 
-                    employeeId, payrollDate, e.getResponseBodyAsString());
+            logger.error("HTTP Error checking Salary Structure Assignment for employee {}, structure {}, date {}, base {}: {}", 
+                        employeeId, salaryStructure, payrollDate, baseSalary, e.getResponseBodyAsString());
             return false;
         } catch (Exception e) {
-            logger.error("Error checking Salary Structure Assignment for employee {} and payroll date {}: {}", 
-                    employeeId, payrollDate, e.getMessage());
+            logger.error("Error checking Salary Structure Assignment for employee {}, structure {}, date {}, base {}: {}", 
+                        employeeId, salaryStructure, payrollDate, baseSalary, e.getMessage());
             return false;
         }
     }
@@ -1132,12 +1131,27 @@ public class ImportService {
     private boolean createSalaryStructureAssignment(SalarySlip salarySlip, int lineNumber, List<String> results) {
         try {
             String employeeId = salarySlip.getEmployeeId();
+            String payrollDate = utilService.formatDate(utilService.getFormattedDate(salarySlip.getMonth()), "yyyy-MM-dd");
+            double baseSalary = Double.parseDouble(salarySlip.getBaseSalary());
+
+            // Vérifier si une affectation existe déjà pour la période exacte et le salaire de base
+            if (checkSalaryStructureAssignmentExists(employeeId, salarySlip.getSalaryStructure(), payrollDate, baseSalary)) {
+                results.add(String.format("Line %d: Salary Structure Assignment already exists for employee %s, period %s, base %s", 
+                                        lineNumber, employeeId, payrollDate, baseSalary));
+                logger.info("Line {}: Salary Structure Assignment already exists for employee {}, period {}, base {}", 
+                            lineNumber, employeeId, payrollDate, baseSalary);
+                return true;
+            }
+
             Map<String, Object> assignmentPayload = new HashMap<>();
             assignmentPayload.put("doctype", "Salary Structure Assignment");
             assignmentPayload.put("employee", employeeId);
             assignmentPayload.put("salary_structure", salarySlip.getSalaryStructure());
-            assignmentPayload.put("from_date", "2025-03-01");
-            assignmentPayload.put("base", Double.parseDouble(salarySlip.getBaseSalary()));
+            assignmentPayload.put("from_date", payrollDate);
+            // Définir la date de fin (dernier jour du mois)
+            String toDate = utilService.getEndOfMonth(salarySlip.getMonth(), "yyyy-MM-dd");
+            assignmentPayload.put("to_date", toDate);
+            assignmentPayload.put("base", baseSalary);
 
             String company = getEmployeeCompany(employeeId);
             if (company == null) {
@@ -1148,7 +1162,7 @@ public class ImportService {
             assignmentPayload.put("company", company);
 
             logger.info("Line {}: Creating Salary Structure Assignment for employee {} with payload: {}", 
-                    lineNumber, employeeId, assignmentPayload);
+                        lineNumber, employeeId, assignmentPayload);
 
             String endpoint = "resource/Salary Structure Assignment";
             String url = baseUrl + endpoint;
@@ -1171,45 +1185,45 @@ public class ImportService {
             if (response.getStatusCode().is2xxSuccessful()) {
                 String assignmentName = (String) ((Map) response.getBody().get("data")).get("name");
                 results.add(String.format("Line %d: Salary Structure Assignment %s created for employee %s", 
-                        lineNumber, assignmentName, employeeId));
+                                        lineNumber, assignmentName, employeeId));
                 logger.info("Line {}: Salary Structure Assignment {} created for employee {}", 
-                        lineNumber, assignmentName, employeeId);
+                            lineNumber, assignmentName, employeeId);
 
                 ResponseEntity<Map> submitResponse = submitResource("Salary Structure Assignment", assignmentName);
                 if (submitResponse.getStatusCode().is2xxSuccessful()) {
                     results.add(String.format("Line %d: Salary Structure Assignment %s submitted for employee %s", 
-                            lineNumber, assignmentName, employeeId));
+                                            lineNumber, assignmentName, employeeId));
                     logger.info("Line {}: Salary Structure Assignment {} submitted for employee {}", 
-                            lineNumber, assignmentName, employeeId);
+                                lineNumber, assignmentName, employeeId);
                     return true;
                 } else {
-                    String errorMsg = submitResponse.getBody() != null ? submitResponse.getBody().toString() : "Unknown error";
-                    results.add(String.format("Line %d: Failed to submit Salary Structure Assignment %s for employee %s: %s", 
-                            lineNumber, assignmentName, employeeId, errorMsg));
-                    logger.error("Line {}: Failed to submit Salary Structure Assignment {} for employee {}: {}", 
-                            lineNumber, assignmentName, employeeId, errorMsg);
+                    //String errorMsg = submitResponse.getError().getBody() != null ? submitResponse.getBody().toString() : "Unknown error";
+                    // results.add(String.format("Line {}: Failed to submit Salary Structure Assignment %s for employee %s: %s", 
+                    //                         lineNumber, assignmentName, employeeId, errorMsg));
+                    // logger.error("Line {}: Failed to submit Salary Structure Assignment {} for employee {}: {}", 
+                    //             lineNumber, assignmentName, employeeId, errorMsg);
                     return false;
                 }
             } else {
                 String errorMsg = response.getBody() != null ? response.getBody().toString() : "Unknown error";
                 results.add(String.format("Line %d: Failed to create Salary Structure Assignment for employee %s: %s", 
-                        lineNumber, employeeId, errorMsg));
+                                        lineNumber, employeeId, errorMsg));
                 logger.error("Line {}: Failed to create Salary Structure Assignment for employee {}: {}", 
-                        lineNumber, employeeId, errorMsg);
+                            lineNumber, employeeId, errorMsg);
                 return false;
             }
         } catch (HttpClientErrorException e) {
             String errorMsg = e.getResponseBodyAsString().isEmpty() ? e.getStatusText() : e.getResponseBodyAsString();
             results.add(String.format("Line %d: Error creating/submitting Salary Structure Assignment for employee %s: %s", 
-                    lineNumber, salarySlip.getEmployeeId(), errorMsg));
+                                    lineNumber, salarySlip.getEmployeeId(), errorMsg));
             logger.error("Line {}: Error creating/submitting Salary Structure Assignment for employee {}: {}", 
-                    lineNumber, salarySlip.getEmployeeId(), errorMsg, e);
+                        lineNumber, salarySlip.getEmployeeId(), errorMsg, e);
             return false;
         } catch (Exception e) {
             results.add(String.format("Line %d: Error creating/submitting Salary Structure Assignment for employee %s: %s", 
-                    lineNumber, salarySlip.getEmployeeId(), e.getMessage()));
+                                    lineNumber, salarySlip.getEmployeeId(), e.getMessage()));
             logger.error("Line {}: Error creating/submitting Salary Structure Assignment for employee {}: {}", 
-                    lineNumber, salarySlip.getEmployeeId(), e.getMessage(), e);
+                        lineNumber, salarySlip.getEmployeeId(), e.getMessage(), e);
             return false;
         }
     }

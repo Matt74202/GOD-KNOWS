@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head></head>
+<body>
+    <!-- Fragment Sidebar -->
+    <div th:fragment="sidebar" class="fixed left-0 top-0 h-full w-64 bg-gray-800 text-white p-4">
+        <div class="text-xl font-bold mb-8 p-2 border-b">HR System</div>
+        <ul class="space-y-2">
+            <li>
+                <a href="/employees" class="flex items-center p-2 hover:bg-gray-700 rounded">
+                    <i class="fas fa-users mr-3"></i>
+                    Employees
+                </a>
+            </li>
+            <li>
+                <a href="/monthly-payslips" class="flex items-center p-2 hover:bg-gray-700 rounded">
+                    <i class="fas fa-file-invoice-dollar mr-3"></i>
+                    Monthly Payslips
+                </a>
+            </li>
+            <li>
+                <a href="/import" class="flex items-center p-2 hover:bg-gray-700 rounded">
+                    <i class="fas fa-file-import mr-3"></i>
+                    Import Data
+                </a>
+            </li>
+        </ul>
+    </div>
+</body>
+</html>

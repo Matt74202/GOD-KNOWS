@@ -10,21 +10,21 @@
 <body class="bg-gray-100 p-6">
     <h2 class="text-2xl font-bold mb-4">Employee Details</h2>
     <div class="bg-white p-4 rounded shadow-md">
-        <p><strong>ID:</strong> <span th:text="${employee.name}"></span></p>
-        <p><strong>First Name:</strong> <span th:text="${employee.firstName}"></span></p>
-        <p><strong>Last Name:</strong> <span th:text="${employee.lastName}"></span></p>
-        <p><strong>Department:</strong> <span th:text="${employee.department}"></span></p>
-        <p><strong>Designation:</strong> <span th:text="${employee.designation}"></span></p>
-        <p><strong>Company:</strong> <span th:text="${employee.company}"></span></p>
-        <p><strong>Date of Joining:</strong> <span th:text="${employee.dateOfJoining}"></span></p>
-        <p><strong>Gender:</strong> <span th:text="${employee.gender}"></span></p>
-        <p><strong>Date of Birth:</strong> <span th:text="${employee.dateOfBirth}"></span></p>
-        <p><strong>Employment Type:</strong> <span th:text="${employee.employmentType}"></span></p>
-        <p><strong>Status:</strong> <span th:text="${employee.status}"></span></p>
+        <p><strong>ID:</strong> <span th:text="${employee.name}" id="employeeId"></span></p>
+        <p><strong>First Name:</strong> <span th:text="${employee.firstName}" id="employeeFirstName"></span></p>
+        <p><strong>Last Name:</strong> <span th:text="${employee.lastName}" id="employeeLastName"></span></p>
+        <p><strong>Department:</strong> <span th:text="${employee.department}" id="employeeDepartment"></span></p>
+        <p><strong>Designation:</strong> <span th:text="${employee.designation}" id="employeeDesignation"></span></p>
+        <p><strong>Company:</strong> <span th:text="${employee.company}" id="employeeCompany"></span></p>
+        <p><strong>Date of Joining:</strong> <span th:text="${employee.dateOfJoining}" id="employeeDateOfJoining"></span></p>
+        <p><strong>Gender:</strong> <span th:text="${employee.gender}" id="employeeGender"></span></p>
+        <p><strong>Date of Birth:</strong> <span th:text="${employee.dateOfBirth}" id="employeeDateOfBirth"></span></p>
+        <p><strong>Employment Type:</strong> <span th:text="${employee.employmentType}" id="employeeEmploymentType"></span></p>
+        <p><strong>Status:</strong> <span th:text="${employee.status}" id="employeeStatus"></span></p>
         <h3 class="text-xl font-bold mt-4">Payslips</h3>
         <div class="mb-4 flex space-x-4">
             <a th:href="@{/employee/export-payslips/{id}(id=${employee.name})}" class="bg-green-500 text-white p-2 rounded hover:bg-green-600">Export Payslips to CSV</a>
-            <button onclick="exportToPDF()" class="bg-blue-600 text-white p-2 rounded hover:bg-blue-700">Export to PDF</button>
+            <button onclick="exportToPDF()" class="bg-blue-600 text-white p-2 rounded hover:bg-blue-700">Export All to PDF</button>
         </div>
         <table id="payslipsTable" class="w-full border-collapse border mt-2">
             <thead>
@@ -40,14 +40,15 @@
             </thead>
             <tbody>
                 <tr th:each="payslip : ${employee.payslips}">
-                    <td class="border p-2" th:text="${payslip.name}"></td>
-                    <td class="border p-2" th:text="${payslip.month}"></td>
-                    <td class="border p-2" th:text="${payslip.status}"></td>
-                    <td class="border p-2" th:text="${payslip.grossPay}"></td>
-                    <td class="border p-2" th:text="${payslip.netPay}"></td>
-                    <td class="border p-2" th:text="${payslip.total}"></td>
-                    <td class="border p-2">
-                        <a th:href="@{/payslip/{employeeId}/{month}(employeeId=${employee.name},month=${payslip.month})}" class="text-blue-500 hover:underline">View Payslip</a>
+                    <td class="border p-2" th:text="${payslip.name}" th:data-payslip-id="${payslip.name}"></td>
+                    <td class="border p-2" th:text="${payslip.month}" th:data-month="${payslip.month}"></td>
+                    <td class="border p-2" th:text="${payslip.status}" th:data-status="${payslip.status}"></td>
+                    <td class="border p-2" th:text="${payslip.grossPay}" th:data-gross-pay="${payslip.grossPay}"></td>
+                    <td class="border p-2" th:text="${payslip.netPay}" th:data-net-pay="${payslip.netPay}"></td>
+                    <td class="border p-2" th:text="${payslip.total}" th:data-total="${payslip.total}"></td>
+                    <td class="border p-2 flex space-x-2">
+                        <a th:href="@{/payslip/{employeeId}/{month}(employeeId=${employee.name},month=${payslip.month})}" class="text-blue-500 hover:underline">View</a>
+                        <button th:attr="data-row-id=${payslip.name}" onclick="exportSingleRowToPDF(this)" class="text-blue-500 hover:underline">Export PDF</button>
                     </td>
                 </tr>
             </tbody>
@@ -76,17 +77,17 @@
             doc.setFontSize(12);
             doc.setFont('helvetica', 'normal');
             const employeeInfo = [
-                `ID: ${document.querySelector('p:nth-child(1) span').textContent}`,
-                `First Name: ${document.querySelector('p:nth-child(2) span').textContent}`,
-                `Last Name: ${document.querySelector('p:nth-child(3) span').textContent}`,
-                `Department: ${document.querySelector('p:nth-child(4) span').textContent}`,
-                `Designation: ${document.querySelector('p:nth-child(5) span').textContent}`,
-                `Company: ${document.querySelector('p:nth-child(6) span').textContent}`,
-                `Date of Joining: ${document.querySelector('p:nth-child(7) span').textContent}`,
-                `Gender: ${document.querySelector('p:nth-child(8) span').textContent}`,
-                `Date of Birth: ${document.querySelector('p:nth-child(9) span').textContent}`,
-                `Employment Type: ${document.querySelector('p:nth-child(10) span').textContent}`,
-                `Status: ${document.querySelector('p:nth-child(11) span').textContent}`
+                `ID: ${document.getElementById('employeeId').textContent}`,
+                `First Name: ${document.getElementById('employeeFirstName').textContent}`,
+                `Last Name: ${document.getElementById('employeeLastName').textContent}`,
+                `Department: ${document.getElementById('employeeDepartment').textContent}`,
+                `Designation: ${document.getElementById('employeeDesignation').textContent}`,
+                `Company: ${document.getElementById('employeeCompany').textContent}`,
+                `Date of Joining: ${document.getElementById('employeeDateOfJoining').textContent}`,
+                `Gender: ${document.getElementById('employeeGender').textContent}`,
+                `Date of Birth: ${document.getElementById('employeeDateOfBirth').textContent}`,
+                `Employment Type: ${document.getElementById('employeeEmploymentType').textContent}`,
+                `Status: ${document.getElementById('employeeStatus').textContent}`
             ];
             doc.text(employeeInfo, 14, 30);
 
@@ -144,8 +145,106 @@
             doc.text(`Generated on ${today}`, 14, doc.internal.pageSize.height - 10);
 
             // Save the PDF
-            const employeeId = document.querySelector('p:nth-child(1) span').textContent;
+            const employeeId = document.getElementById('employeeId').textContent;
             doc.save(`employee_${employeeId}_details.pdf`);
+        }
+
+       function exportSingleRowToPDF(button) {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            // Get the row data
+            const row = button.closest('tr');
+            const payslipData = {
+                id: row.querySelector('td:nth-child(1)').textContent,
+                month: row.querySelector('td:nth-child(2)').textContent,
+                status: row.querySelector('td:nth-child(3)').textContent,
+                grossPay: row.querySelector('td:nth-child(4)').textContent,
+                netPay: row.querySelector('td:nth-child(5)').textContent,
+                total: row.querySelector('td:nth-child(6)').textContent
+            };
+
+            // Set document properties
+            doc.setProperties({
+                title: 'Employee Payslip Details',
+                author: 'ERPNext Application',
+                creator: 'jsPDF'
+            });
+
+            // Add title
+            doc.setFontSize(18);
+            doc.setFont('helvetica', 'bold');
+            doc.text('Employee Details', 14, 20);
+
+            // Add employee information
+            doc.setFontSize(12);
+            doc.setFont('helvetica', 'normal');
+            const employeeInfo = [
+                `ID: ${document.getElementById('employeeId').textContent}`,
+                `Name: ${document.getElementById('employeeFirstName').textContent} ${document.getElementById('employeeLastName').textContent}`,
+                `Department: ${document.getElementById('employeeDepartment').textContent}`,
+                `Designation: ${document.getElementById('employeeDesignation').textContent}`,
+                `Company: ${document.getElementById('employeeCompany').textContent}`,
+                `Date of Joining: ${document.getElementById('employeeDateOfJoining').textContent}`,
+                `Gender: ${document.getElementById('employeeGender').textContent}`,
+                `Date of Birth: ${document.getElementById('employeeDateOfBirth').textContent}`,
+                // `Employment Type: ${document.getElementById('employeeEmploymentType').textContent}`,
+                `Status: ${document.getElementById('employeeStatus').textContent}`
+            ];
+            doc.text(employeeInfo, 14, 30);
+
+            // Add payslip table title
+            doc.setFontSize(14);
+            doc.setFont('helvetica', 'bold');
+            doc.text('Payslip Details', 14, 70);
+
+            // Create table data with only the selected row
+            const headers = ['Payslip ID', 'Month', 'Status', 'Gross Pay', 'Net Pay', 'Total Earnings'];
+            const rowData = [
+                payslipData.id,
+                payslipData.month,
+                payslipData.status,
+                payslipData.grossPay,
+                payslipData.netPay,
+                payslipData.total
+            ];
+
+            // Add table to PDF using autoTable
+            doc.autoTable({
+                startY: 80,
+                head: [headers],
+                body: [rowData],
+                theme: 'grid',
+                headStyles: {
+                    fillColor: [200, 200, 200],
+                    textColor: [0, 0, 0],
+                    fontStyle: 'bold'
+                },
+                styles: {
+                    font: 'helvetica',
+                    fontSize: 10,
+                    cellPadding: 2,
+                    lineColor: [0, 0, 0],
+                    lineWidth: 0.1
+                },
+                columnStyles: {
+                    3: { halign: 'right' }, // Gross Pay
+                    4: { halign: 'right' }, // Net Pay
+                    5: { halign: 'right' }  // Total Earnings
+                }
+            });
+
+            // Add footer with date
+            const today = new Date().toLocaleDateString('en-US', {
+                year: 'numeric', month: 'long', day: 'numeric'
+            });
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'italic');
+            doc.text(`Generated on ${today}`, 14, doc.internal.pageSize.height - 10);
+
+            // Save the PDF
+            const employeeId = document.getElementById('employeeId').textContent;
+            doc.save(`employee_${employeeId}_payslip_${payslipData.month}.pdf`);
         }
     </script>
 </body>

@@ -4,105 +4,106 @@
     <meta charset="UTF-8">
     <title>Employee List</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 </head>
-<body class="bg-gray-100 p-6">
-    <h2 class="text-2xl font-bold mb-4">Employees</h2>
-    <form th:action="@{/employees}" method="get" class="mb-4">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-                <label class="block text-sm font-medium">Search by First Name</label>
-                <input type="text" name="search" th:value="${search}" class="p-2 border rounded w-full">
+<body class="bg-gray-100">
+    <!-- Include Sidebar -->
+   <div th:replace="~{sidebar :: sidebar}"></div>
+
+    <!-- Main Content -->
+    <div class="ml-64 p-6">
+        <h2 class="text-2xl font-bold mb-4">Employees</h2>
+        <form th:action="@{/employees}" method="get" class="mb-4">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                    <label class="block text-sm font-medium">Search by First Name</label>
+                    <input type="text" name="search" th:value="${search}" class="p-2 border rounded w-full">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium">First Name</label>
+                    <input type="text" name="firstName" th:value="${firstName}" class="p-2 border rounded w-full">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium">Last Name</label>
+                    <input type="text" name="lastName" th:value="${lastName}" class="p-2 border rounded w-full">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium">Department</label>
+                    <select name="department" class="p-2 border rounded w-full">
+                        <option value="" th:selected="${department == null}">Select Department</option>
+                        <option th:each="dept : ${departmentList}" th:value="${dept}" th:text="${dept}" th:selected="${dept == department}"></option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium">Designation</label>
+                    <select name="designation" class="p-2 border rounded w-full">
+                        <option value="" th:selected="${designation == null}">Select Designation</option>
+                        <option th:each="desig : ${designationList}" th:value="${desig}" th:text="${desig}" th:selected="${desig == designation}"></option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium">Company</label>
+                    <select name="company" class="p-2 border rounded w-full">
+                        <option value="" th:selected="${company == null}">Select Company</option>
+                        <option th:each="comp : ${companyList}" th:value="${comp}" th:text="${comp}" th:selected="${comp == company}"></option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium">Gender</label>
+                    <select name="gender" class="p-2 border rounded w-full">
+                        <option value="" th:selected="${gender == null}">Select Gender</option>
+                        <option th:each="gen : ${genderList}" th:value="${gen}" th:text="${gen}" th:selected="${gen == gender}"></option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium">Date of Joining</label>
+                    <input type="date" name="dateOfJoining" th:value="${dateOfJoining}" class="p-2 border rounded w-full">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium">Date of Birth</label>
+                    <input type="date" name="dateOfBirth" th:value="${dateOfBirth}" class="p-2 border rounded w-full">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium">Employment Type</label>
+                    <input type="text" name="employmentType" th:value="${employmentType}" class="p-2 border rounded w-full">
+                </div>
             </div>
-            <div>
-                <label class="block text-sm font-medium">First Name</label>
-                <input type="text" name="firstName" th:value="${firstName}" class="p-2 border rounded w-full">
-            </div>
-            <div>
-                <label class="block text-sm font-medium">Last Name</label>
-                <input type="text" name="lastName" th:value="${lastName}" class="p-2 border rounded w-full">
-            </div>
-            <div>
-                <label class="block text-sm font-medium">Department</label>
-                <select name="department" class="p-2 border rounded w-full">
-                    <option value="" th:selected="${department == null}">Select Department</option>
-                    <option th:each="dept : ${departmentList}" th:value="${dept}" th:text="${dept}" th:selected="${dept == department}"></option>
-                </select>
-            </div>
-            <div>
-                <label class="block text-sm font-medium">Designation</label>
-                <select name="designation" class="p-2 border rounded w-full">
-                    <option value="" th:selected="${designation == null}">Select Designation</option>
-                    <option th:each="desig : ${designationList}" th:value="${desig}" th:text="${desig}" th:selected="${desig == designation}"></option>
-                </select>
-            </div>
-            <div>
-                <label class="block text-sm font-medium">Company</label>
-                <select name="company" class="p-2 border rounded w-full">
-                    <option value="" th:selected="${company == null}">Select Company</option>
-                    <option th:each="comp : ${companyList}" th:value="${comp}" th:text="${comp}" th:selected="${comp == company}"></option>
-                </select>
-            </div>
-            <div>
-                <label class="block text-sm font-medium">Gender</label>
-                <select name="gender" class="p-2 border rounded w-full">
-                    <option value="" th:selected="${gender == null}">Select Gender</option>
-                    <option th:each="gen : ${genderList}" th:value="${gen}" th:text="${gen}" th:selected="${gen == gender}"></option>
-                </select>
-            </div>
-            <div>
-                <label class="block text-sm font-medium">Date of Joining</label>
-                <input type="date" name="dateOfJoining" th:value="${dateOfJoining}" class="p-2 border rounded w-full">
-            </div>
-            <div>
-                <label class="block text-sm font-medium">Date of Birth</label>
-                <input type="date" name="dateOfBirth" th:value="${dateOfBirth}" class="p-2 border rounded w-full">
-            </div>
-            <div>
-                <label class="block text-sm font-medium">Employment Type</label>
-                <input type="text" name="employmentType" th:value="${employmentType}" class="p-2 border rounded w-full">
-            </div>
+            <button type="submit" class="mt-4 bg-blue-500 text-white p-2 rounded hover:bg-blue-600">Filter</button>
+        </form>
+
+        <div th:if="${message}" class="text-green-500 mb-4" th:text="${message}"></div>
+        <div th:if="${importResults}" class="mb-4">
+            <h3 class="font-bold">Import Results:</h3>
+            <ul>
+                <li th:each="result : ${importResults}" th:text="${result}"></li>
+            </ul>
         </div>
-        <button type="submit" class="mt-4 bg-blue-500 text-white p-2 rounded hover:bg-blue-600">Filter</button>
-    </form>
+        <div th:if="${error}" class="text-red-500 mb-4" th:text="${error}"></div>
 
-  <div th:if="${message}" class="text-green-500 mb-4" th:text="${message}"></div>
-<div th:if="${importResults}" class="mb-4">
-    <h3 class="font-bold">Import Results:</h3>
-    <ul>
-        <li th:each="result : ${importResults}" th:text="${result}"></li>
-    </ul>
-</div>
-<div th:if="${error}" class="text-red-500 mb-4" th:text="${error}"></div>
-
-    <table class="w-full border-collapse border">
-        <thead>
-            <tr class="bg-gray-200">
-                <th class="border p-2">Employee ID</th>
-                <th class="border p-2">Name</th>
-                <th class="border p-2">Department</th>
-                <th class="border p-2">Designation</th>
-                <th class="border p-2">Company</th>
-                <th class="border p-2">Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr th:each="employee : ${employees}">
-                <td class="border p-2" th:text="${employee.name}"></td>
-                <td class="border p-2" th:text="${employee.employeeName}"></td>
-                <td class="border p-2" th:text="${employee.department}"></td>
-                <td class="border p-2" th:text="${employee.designation}"></td>
-                <td class="border p-2" th:text="${employee.company}"></td>
-                <td class="border p-2">
-                    <a th:href="@{/employee/{id}(id=${employee.name})}" class="text-blue-500 hover:underline">Details</a>
-                    <a th:href="@{/monthly-payslips}" class="text-blue-500 hover:underline ml-2">View Monthly Payslips</a>
-                </td>
-            </tr>
-        </tbody>
-    </table>
-
-    <form th:action="@{/import}" method="post" enctype="multipart/form-data" class="mt-4">
-        <input type="file" name="file" accept=".csv" class="p-2 border rounded">
-        <button type="submit" class="bg-blue-500 text-white p-2 rounded hover:bg-blue-600">Import CSV</button>
-    </form>
+        <table class="w-full border-collapse border">
+            <thead>
+                <tr class="bg-gray-200">
+                    <th class="border p-2">Employee ID</th>
+                    <th class="border p-2">Name</th>
+                    <th class="border p-2">Department</th>
+                    <th class="border p-2">Designation</th>
+                    <th class="border p-2">Company</th>
+                    <th class="border p-2">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr th:each="employee : ${employees}">
+                    <td class="border p-2" th:text="${employee.name}"></td>
+                    <td class="border p-2" th:text="${employee.employeeName}"></td>
+                    <td class="border p-2" th:text="${employee.department}"></td>
+                    <td class="border p-2" th:text="${employee.designation}"></td>
+                    <td class="border p-2" th:text="${employee.company}"></td>
+                    <td class="border p-2">
+                        <a th:href="@{/employee/{id}(id=${employee.name})}" class="text-blue-500 hover:underline">Details</a>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
 </body>
 </html>

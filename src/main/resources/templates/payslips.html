@@ -4,47 +4,53 @@
     <meta charset="UTF-8">
     <title>Monthly Payslips</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 </head>
-<body class="bg-gray-100 p-6">
-    <h2 class="text-2xl font-bold mb-4">Monthly Payslips</h2>
-    <form th:action="@{/payslips}" method="get" class="mb-4">
-        <input type="month" name="month" th:value="${month}" class="p-2 border rounded">
-        <button type="submit" class="bg-blue-500 text-white p-2 rounded hover:bg-blue-600">Filter</button>
-    </form>
-    <table class="w-full border-collapse border">
-        <thead>
-            <tr class="bg-gray-200">
-                <th class="border p-2">Payslip ID</th>
-                <th class="border p-2">Employee ID</th>
-                <th class="border p-2">Employee</th>
-                <th class="border p-2">Start Date</th>
-                <th class="border p-2">End Date</th>
-                <th class="border p-2">Month</th>
-                <th class="border p-2">Components</th>
-                <th class="border p-2">Total</th>
-                <th class="border p-2">Gross Pay</th>
-                <th class="border p-2">Net Pay</th>
-                <th class="border p-2">Status</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr th:each="payslip : ${payslips}">
-                <td class="border p-2" th:text="${payslip.name}"></td>
-                <td class="border p-2" th:text="${payslip.employee}"></td>
-                <td class="border p-2" th:text="${payslip.employeeName}"></td>
-                <td class="border p-2" th:text="${payslip.startDate}"></td>
-                <td class="border p-2" th:text="${payslip.endDate}"></td>
-                <td class="border p-2" th:text="${payslip.month}"></td>
-                <td class="border p-2">
-                    <span th:each="component, iterStat : ${payslip.components}" th:text="${component.component} + ': ' + ${component.amount} + (${iterStat.last} ? '' : ', ')"></span>
-                </td>
-                <td class="border p-2" th:text="${payslip.total}"></td>
-                <td class="border p-2" th:text="${payslip.grossPay}"></td>
-                <td class="border p-2" th:text="${payslip.netPay}"></td>
-                <td class="border p-2" th:text="${payslip.status}"></td>
-            </tr>
-        </tbody>
-    </table>
-    <a th:href="@{/employees}" class="mt-4 inline-block bg-blue-500 text-white p-2 rounded hover:bg-blue-600">Back to Employees</a>
+<body class="bg-gray-100">
+    <!-- Include Sidebar -->
+    <div th:replace="~{sidebar :: sidebar}"></div>
+
+    <!-- Main Content -->
+    <div class="ml-64 p-6">
+        <h2 class="text-2xl font-bold mb-4">Monthly Payslips</h2>
+        <form th:action="@{/payslips}" method="get" class="mb-4">
+            <input type="month" name="month" th:value="${month}" class="p-2 border rounded">
+            <button type="submit" class="bg-blue-500 text-white p-2 rounded hover:bg-blue-600">Filter</button>
+        </form>
+        <table class="w-full border-collapse border">
+            <thead>
+                <tr class="bg-gray-200">
+                    <th class="border p-2">Payslip ID</th>
+                    <th class="border p-2">Employee ID</th>
+                    <th class="border p-2">Employee</th>
+                    <th class="border p-2">Start Date</th>
+                    <th class="border p-2">End Date</th>
+                    <th class="border p-2">Month</th>
+                    <th class="border p-2">Components</th>
+                    <th class="border p-2">Total</th>
+                    <th class="border p-2">Gross Pay</th>
+                    <th class="border p-2">Net Pay</th>
+                    <th class="border p-2">Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr th:each="payslip : ${payslips}">
+                    <td class="border p-2" th:text="${payslip.name}"></td>
+                    <td class="border p-2" th:text="${payslip.employee}"></td>
+                    <td class="border p-2" th:text="${payslip.employeeName}"></td>
+                    <td class="border p-2" th:text="${payslip.startDate}"></td>
+                    <td class="border p-2" th:text="${payslip.endDate}"></td>
+                    <td class="border p-2" th:text="${payslip.month}"></td>
+                    <td class="border p-2">
+                        <span th:each="component, iterStat : ${payslip.components}" th:text="${component.component} + ': ' + ${component.amount} + (${iterStat.last} ? '' : ', ')"></span>
+                    </td>
+                    <td class="border p-2" th:text="${payslip.total}"></td>
+                    <td class="border p-2" th:text="${payslip.grossPay}"></td>
+                    <td class="border p-2" th:text="${payslip.netPay}"></td>
+                    <td class="border p-2" th:text="${payslip.status}"></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
 </body>
 </html>

@@ -81,6 +81,17 @@ public class ImportService {
                 companyData.put("company_name", company);
                 companyData.put("default_currency", "MGA");
                 companyData.put("country", "Madagascar");
+
+                String holidayListName = createDefaultHolidayList(company);
+                if (holidayListName != null) {
+                    companyData.put("default_holiday_list", holidayListName);
+                } else {
+                    logger.error("Failed to create holiday list for company {}", company);
+                    Map<String, Object> errorResponse = new HashMap<>();
+                    errorResponse.put("error", "Failed to create holiday list for company: " + company);
+                    return ResponseEntity.badRequest().body(errorResponse);
+                }
+
                 ResponseEntity<Map> companyResponse = createCompany(companyData);
                 if (!companyResponse.getStatusCode().is2xxSuccessful()) {
                     String errorMsg = companyResponse.getBody() != null ? companyResponse.getBody().toString() : "Unknown error";

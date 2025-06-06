@@ -21,13 +21,11 @@ import org.springframework.web.client.RestTemplate;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.text.SimpleDateFormat;
+import java.time.Month;
 import java.time.YearMonth;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.*;
 
 @Service
 public class ERPNextService {
@@ -555,7 +553,7 @@ public void clearCookies() {
             System.out.println("Attempting to fetch payslip for employee: " + employeeId + ", month: " + month);
             checkSessionOrThrow();
 
-            String endpoint = "resource/Salary Slip?fields=[\"name\",\"employee\",\"employee_name\",\"start_date\",\"end_date\",\"gross_pay\",\"net_pay\",\"status\",\"earnings\"]&filters=[[\\\"employee\\\",\\\"=\\\",\\\"" + employeeId + "\\\"],[\\\"posting_date\\\",\\\"like\\\",\\\"" + month + "%\\\"]]";
+            String endpoint = "resource/Salary Slip?fields=[\"name\",\"employee\",\"employee_name\",\"start_date\",\"end_date\",\"gross_pay\",\"net_pay\",\"status\",\"earnings\"]&filters=[[\"employee\",\"=\",\"" + employeeId + "\"],[\"posting_date\",\"like\",\"" + month + "%\"]]";
             String url = baseUrl + endpoint;
             System.out.println("Constructed URL: " + url);
 
@@ -986,4 +984,265 @@ public ResponseEntity<Map> importEmployee(Map<String, Object> employeeData) {
             .body(Map.of("error", "Unexpected error: " + e.getMessage()));
     }
 }
+    public List<Integer> getSalaryYears() {
+        try {
+            System.out.println("Attempting to fetch available years for salary slips");
+            checkSessionOrThrow();
+
+            String endpoint = "resource/Salary Slip?fields=[\"DISTINCT YEAR(posting_date) as year\"]&filters=[[\"docstatus\",\"=\",1]]&order_by=year DESC";
+            String url = baseUrl + endpoint;
+            System.out.println("Constructed URL: " + url);
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("Accept", "application/json");
+            HttpEntity<String> entity = new HttpEntity<>(headers);
+
+            System.out.println("Sending GET request to: " + url);
+            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, entity, Map.class);
+
+            List<Cookie> cookies = cookieStore.getCookies();
+            System.out.println("Cookies after request:");
+            for (Cookie cookie : cookies) {
+                System.out.println("Cookie: " + cookie.getName() + "=" + cookie.getValue() + "; Domain=" + cookie.getDomain() + "; Path=" + cookie.getPath());
+            }
+
+            String rawResponse = response.getBody() != null ? response.getBody().toString() : "null";
+            System.out.println("Raw response from /api/resource/Salary Slip: " + rawResponse);
+
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null && response.getBody().containsKey("data")) {
+                System.out.println("Fetch years successful with HTTP status: " + response.getStatusCode());
+                List<Map<String, Object>> data = (List<Map<String, Object>>) response.getBody().get("data");
+                return data.stream()
+                        .map(item -> ((Number) item.get("year")).intValue())
+                        .distinct()
+                        .sorted(Comparator.reverseOrder())
+                        .collect(Collectors.toList());
+            } else {
+                System.out.println("Fetch years failed: Invalid response. HTTP status: " + response.getStatusCode());
+                return Collections.emptyList();
+            }
+        } catch (HttpClientErrorException e) {
+            System.err.println("HTTP Error fetching years: " + e.getStatusCode() + " - " + e.getResponseBodyAsString());
+            return Collections.emptyList();
+        } catch (RestClientException e) {
+            System.err.println("Failed to connect to ERPNext for years: " + e.getMessage());
+            return Collections.emptyList();
+        } catch (Exception e) {
+            System.err.println("Unexpected error fetching years: " + e.getMessage());
+            e.printStackTrace();
+            return Collections.emptyList();
+        }
+    }
+
+    // Nouvelle méthode : Récapitulatif des salaires par mois
+public List<Map<String, Object>> getSalarySummary(Integer year) {
+    try {
+        System.out.println("Attempting to fetch salary summary for year: " + year);
+        checkSessionOrThrow();
+
+        // Construct filters for the year
+        String filters = year != null 
+            ? "&filters=[[\"docstatus\",\"=\",1],[\"posting_date\",\"between\",[\"" + year + "-01-01\",\"" + year + "-12-31\"]]]" 
+            : "&filters=[[\"docstatus\",\"=\",1]]";
+        
+        String endpoint = "resource/Salary Slip?fields=[\"posting_date\",\"gross_pay\",\"net_pay\"]" + filters;
+        String url = baseUrl + endpoint;
+        System.out.println("Constructed URL: " + url);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("Accept", "application/json");
+        HttpEntity<String> entity = new HttpEntity<>(headers);
+
+        System.out.println("Sending GET request to: " + url);
+        ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, entity, Map.class);
+
+        if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null && response.getBody().containsKey("data")) {
+            List<Map<String, Object>> data = (List<Map<String, Object>>) response.getBody().get("data");
+            
+            // Group data by month and calculate sums
+            Map<Integer, Map<String, Double>> monthlyData = new HashMap<>();
+            
+            for (Map<String, Object> slip : data) {
+                String postingDateStr = (String) slip.get("posting_date");
+                Date postingDate = new SimpleDateFormat("yyyy-MM-dd").parse(postingDateStr);
+                Calendar cal = Calendar.getInstance();
+                cal.setTime(postingDate);
+                int month = cal.get(Calendar.MONTH) + 1; // Months are 0-based
+                
+                double grossPay = ((Number) slip.get("gross_pay")).doubleValue();
+                double netPay = ((Number) slip.get("net_pay")).doubleValue();
+                
+                monthlyData.putIfAbsent(month, new HashMap<>());
+                Map<String, Double> monthData = monthlyData.get(month);
+                
+                monthData.put("total_salary", monthData.getOrDefault("total_salary", 0.0) + grossPay);
+                monthData.put("net_salary", monthData.getOrDefault("net_salary", 0.0) + netPay);
+            }
+            
+            // Convert to output format
+            List<Map<String, Object>> summaries = new ArrayList<>();
+            for (Map.Entry<Integer, Map<String, Double>> entry : monthlyData.entrySet()) {
+                Map<String, Object> summary = new HashMap<>();
+                summary.put("month", entry.getKey());
+                summary.put("month_name", Month.of(entry.getKey()).name());
+                summary.put("total_salary", entry.getValue().get("total_salary"));
+                summary.put("net_salary", entry.getValue().get("net_salary"));
+                summaries.add(summary);
+            }
+            
+            // Sort by month
+            summaries.sort(Comparator.comparing(m -> (Integer) m.get("month")));
+            
+            return summaries;
+        } else {
+            System.out.println("Fetch salary summary failed: Invalid response. HTTP status: " + response.getStatusCode());
+            return Collections.emptyList();
+        }
+    } catch (Exception e) {
+        System.err.println("Error processing salary summary: " + e.getMessage());
+        e.printStackTrace();
+        return Collections.emptyList();
+    }
+}       
+
+    // Nouvelle méthode : Détails des salaires par employé pour un mois donné
+public List<Map<String, Object>> getEmployeeSalaryDetails(Integer month, Integer year) {
+    try {
+        System.out.println("Attempting to fetch employee salary details for month: " + month + ", year: " + year);
+        checkSessionOrThrow();
+
+        // Construct date range for the month
+        String startDate = String.format("%04d-%02d-01", year, month);
+        String endDate = YearMonth.of(year, month).atEndOfMonth().toString();
+        
+        String filters = "&filters=[[\"docstatus\",\"=\",1],[\"posting_date\",\"between\",[\"" + startDate + "\",\"" + endDate + "\"]]]";
+        String endpoint = "resource/Salary Slip?fields=[\"employee\",\"employee_name\",\"gross_pay\",\"net_pay\"]" + filters;
+        String url = baseUrl + endpoint;
+        System.out.println("Constructed URL: " + url);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("Accept", "application/json");
+        HttpEntity<String> entity = new HttpEntity<>(headers);
+
+        System.out.println("Sending GET request to: " + url);
+        ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, entity, Map.class);
+
+        if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null && response.getBody().containsKey("data")) {
+            List<Map<String, Object>> data = (List<Map<String, Object>>) response.getBody().get("data");
+            List<Map<String, Object>> details = new ArrayList<>();
+            
+            for (Map<String, Object> slip : data) {
+                Map<String, Object> detail = new HashMap<>();
+                detail.put("employee_id", slip.get("employee"));
+                detail.put("employee_name", slip.get("employee_name"));
+                
+                double grossPay = ((Number) slip.get("gross_pay")).doubleValue();
+                double netPay = ((Number) slip.get("net_pay")).doubleValue();
+                double deductions = grossPay - netPay; // Calculate deductions
+                
+                detail.put("total_salary", grossPay);
+                detail.put("net_salary", netPay);
+                detail.put("deductions", deductions);
+                detail.put("bonuses", 0.0); // No earnings data available for bonuses
+                
+                details.add(detail);
+            }
+            
+            return details;
+        } else {
+            System.out.println("Fetch employee salary details failed: Invalid response. HTTP status: " + response.getStatusCode());
+            return Collections.emptyList();
+        }
+    } catch (Exception e) {
+        System.err.println("Error processing employee salary details: " + e.getMessage());
+        e.printStackTrace();
+        return Collections.emptyList();
+    }
 }
+    // Nouvelle méthode : Données pour le graphique d'évolution
+public Map<String, Object> getSalaryEvolution(Integer year) {
+    try {
+        System.out.println("Attempting to fetch salary evolution for year: " + year);
+        checkSessionOrThrow();
+
+        // Construct filters for the year
+        String filters = year != null 
+            ? "&filters=[[\"docstatus\",\"=\",1],[\"posting_date\",\"between\",[\"" + year + "-01-01\",\"" + year + "-12-31\"]]]" 
+            : "&filters=[[\"docstatus\",\"=\",1]]";
+        
+        String endpoint = "resource/Salary Slip?fields=[\"posting_date\",\"gross_pay\",\"net_pay\"]" + filters;
+        String url = baseUrl + endpoint;
+        System.out.println("Constructed URL: " + url);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("Accept", "application/json");
+        HttpEntity<String> entity = new HttpEntity<>(headers);
+
+        System.out.println("Sending GET request to: " + url);
+        ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, entity, Map.class);
+
+        if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null && response.getBody().containsKey("data")) {
+            List<Map<String, Object>> data = (List<Map<String, Object>>) response.getBody().get("data");
+            
+            // Initialize data structure for each month
+            Map<Integer, Map<String, Double>> monthlyData = new HashMap<>();
+            for (int m = 1; m <= 12; m++) {
+                monthlyData.put(m, new HashMap<>());
+                monthlyData.get(m).put("total_salary", 0.0);
+                monthlyData.get(m).put("net_salary", 0.0);
+                monthlyData.get(m).put("deductions", 0.0);
+            }
+            
+            // Process each salary slip
+            for (Map<String, Object> slip : data) {
+                String postingDateStr = (String) slip.get("posting_date");
+                Date postingDate = new SimpleDateFormat("yyyy-MM-dd").parse(postingDateStr);
+                Calendar cal = Calendar.getInstance();
+                cal.setTime(postingDate);
+                int month = cal.get(Calendar.MONTH) + 1;
+                
+                double grossPay = ((Number) slip.get("gross_pay")).doubleValue();
+                double netPay = ((Number) slip.get("net_pay")).doubleValue();
+                double deductions = grossPay - netPay;
+                
+                // Update monthly totals
+                Map<String, Double> monthData = monthlyData.get(month);
+                monthData.put("total_salary", monthData.get("total_salary") + grossPay);
+                monthData.put("net_salary", monthData.get("net_salary") + netPay);
+                monthData.put("deductions", monthData.get("deductions") + deductions);
+            }
+            
+            // Prepare data for the chart
+            List<String> labels = new ArrayList<>();
+            List<Double> totalSalaries = new ArrayList<>();
+            List<Double> netSalaries = new ArrayList<>();
+            List<Double> deductions = new ArrayList<>();
+            
+            for (int m = 1; m <= 12; m++) {
+                labels.add(Month.of(m).name());
+                Map<String, Double> monthData = monthlyData.get(m);
+                totalSalaries.add(monthData.get("total_salary"));
+                netSalaries.add(monthData.get("net_salary"));
+                deductions.add(monthData.get("deductions"));
+            }
+            
+            Map<String, Object> evolution = new HashMap<>();
+            evolution.put("labels", labels);
+            evolution.put("total_salary", totalSalaries);
+            evolution.put("net_salary", netSalaries);
+            evolution.put("deductions", deductions);
+            
+            return evolution;
+        } else {
+            System.out.println("Fetch salary evolution failed: Invalid response. HTTP status: " + response.getStatusCode());
+            return Collections.emptyMap();
+        }
+    } catch (Exception e) {
+        System.err.println("Error processing salary evolution: " + e.getMessage());
+        e.printStackTrace();
+        return Collections.emptyMap();
+    }
+}
+    // ... (Autres méthodes existantes inchangées)
+}
+

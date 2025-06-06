@@ -185,4 +185,26 @@ public class ERPNextController {
         }
         return "redirect:/payslips";
     }
+    @GetMapping("/salary-stats")
+    public String salaryStats(@RequestParam(required = false) Integer year, Model model, HttpSession session) {
+        try {
+            // Vérifier la validité de la session
+            if (!erpNextService.isSessionValid()) {
+                return "redirect:/login?error=Session expired or invalid. Please login again.";
+            }
+
+            // Récupérer les années disponibles
+            List<Integer> years = erpNextService.getSalaryYears();
+            // Récupérer le récapitulatif des salaires
+            List<Map<String, Object>> summaries = erpNextService.getSalarySummary(year);
+
+            model.addAttribute("years", years);
+            model.addAttribute("summaries", summaries);
+            model.addAttribute("year", year);
+
+            return "salary_stats";
+        } catch (RuntimeException e) {
+            return "redirect:/login?error=" + e.getMessage();
+        }
+    }
 }

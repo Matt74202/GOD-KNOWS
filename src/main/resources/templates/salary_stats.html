@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="fr" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Statistiques des salaires</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body class="bg-gray-100">
+    <!-- Include Sidebar -->
+    <div th:replace="~{sidebar :: sidebar}"></div>
+
+    <!-- Main Content -->
+    <div class="ml-64 p-6">
+        <h2 class="text-2xl font-bold mb-4">Statistiques des salaires</h2>
+        <a href="/logout" class="text-blue-500 hover:underline">Déconnexion</a>
+
+        <!-- Filtre par année -->
+        <form th:action="@{/salary-stats}" method="get" class="mb-4">
+            <div class="grid grid-cols-1 md:grid-cols-1 gap-4">
+                <div>
+                    <label class="block text-sm font-medium">Filtrer par année</label>
+                    <select name="year" class="p-2 border rounded w-full">
+                        <option value="" th:selected="${year == null}">Toutes les années</option>
+                        <option th:each="y : ${years}" th:value="${y}" th:text="${y}" th:selected="${y == year}"></option>
+                    </select>
+                </div>
+            </div>
+            <button type="submit" class="mt-4 bg-blue-500 text-white p-2 rounded hover:bg-blue-600">Filtrer</button>
+        </form>
+
+        <!-- Messages -->
+        <div th:if="${message}" class="text-green-500 mb-4" th:text="${message}"></div>
+        <div th:if="${error}" class="text-red-500 mb-4" th:text="${error}"></div>
+
+        <!-- Tableau récapitulatif -->
+        <h3 class="text-xl font-semibold mb-2">Récapitulatif des salaires par mois</h3>
+        <table class="w-full border-collapse border">
+            <thead>
+                <tr class="bg-gray-200">
+                    <th class="border p-2">Mois</th>
+                    <th class="border p-2">Total des salaires</th>
+                    <th class="border p-2">Salaire net</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr th:each="summary : ${summaries}" class="salary-row" th:data-month="${summary.month}" th:data-year="${year}">
+                    <td class="border p-2" th:text="${summary.month_name}"></td>
+                    <td class="border p-2 total-salary cursor-pointer" th:text="${#numbers.formatDecimal(summary.total_salary, 0, 'COMMA', 2, 'POINT')} + ' MAD'"></td>
+                    <td class="border p-2" th:text="${#numbers.formatDecimal(summary.net_salary, 0, 'COMMA', 2, 'POINT')} + ' MAD'"></td>
+                </tr>
+            </tbody>
+        </table>
+
+        <!-- Tableau détaillé par employé (caché par défaut) -->
+        <h3 class="text-xl font-semibold mt-6 mb-2">Détails par employé</h3>
+        <table class="w-full border-collapse border hidden" id="employee-details-table">
+            <thead>
+                <tr class="bg-gray-200">
+                    <th class="border p-2">Employé</th>
+                    <th class="border p-2">Salaire net</th>
+                    <th class="border p-2">Déductions</th>
+                    <th class="border p-2">Total</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+
+        <!-- Graphique d'évolution -->
+        <h3 class="text-xl font-semibold mt-6 mb-2">Évolution des salaires</h3>
+        <canvas id="salary-chart" class="w-full" style="max-height: 400px;"></canvas>
+    </div>
+
+    <!-- Script JavaScript pour les interactions dynamiques -->
+    <script>
+        $(document).ready(function() {
+            // Charger les détails par employé au clic sur un mois
+            $('.salary-row').on('click', function() {
+                const month = $(this).data('month');
+                const year = $(this).data('year');
+                const url = year ? `/api/salary-stats/employee-details?month=${month}&year=${year}` : `/api/salary-stats/employee-details?month=${month}`;
+                
+                $.get(url, function(data) {
+                    const tableBody = $('#employee-details-table tbody');
+                    tableBody.empty();
+                    data.forEach(row => {
+                        tableBody.append(`
+                            <tr>
+                                <td class="border p-2">${row.employee_name}</td>
+                                <td class="border p-2">${Number(row.net_salary).toLocaleString('fr-FR', { style: 'currency', currency: 'MAD' })}</td>
+                                <td class="border p-2">${Number(row.deductions).toLocaleString('fr-FR', { style: 'currency', currency: 'MAD' })}</td>
+                                <td class="border p-2">${Number(row.total_salary).toLocaleString('fr-FR', { style: 'currency', currency: 'MAD' })}</td>
+                            </tr>
+                        `);
+                    });
+                    $('#employee-details-table').removeClass('hidden');
+                }).fail(function() {
+                    alert('Erreur lors du chargement des détails.');
+                });
+            });
+
+            // Charger le graphique d'évolution
+            const year = $('[name="year"]').val();
+            const url = year ? `/api/salary-stats/evolution?year=${year}` : '/api/salary-stats/evolution';
+            $.get(url, function(data) {
+                const ctx = document.getElementById('salary-chart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: data.labels,
+                        datasets: [
+                            {
+                                label: 'Total des salaires',
+                                data: data.total_salary,
+                                borderColor: 'blue',
+                                fill: false
+                            },
+                            {
+                                label: 'Salaire net',
+                                data: data.net_salary,
+                                borderColor: 'green',
+                                fill: false
+                            },
+                            {
+                                label: 'Déductions',
+                                data: data.deductions,
+                                borderColor: 'red',
+                                fill: false
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                title: {
+                                    display: true,
+                                    text: 'Montant (MAD)'
+                                }
+                            },
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: 'Mois'
+                                }
+                            }
+                        }
+                    }
+                });
+            }).fail(function() {
+                console.error('Erreur lors du chargement du graphique.');
+            });
+        });
+    </script>
+</body>
+</html>

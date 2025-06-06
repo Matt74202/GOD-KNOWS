@@ -71,8 +71,12 @@
                     </div>
                     <button type="submit" class="btn btn-primary">Import CSV</button>
                 </form>
+                <form th:action="@{/reset-data}" method="post">
+                    <button type="submit" class="btn btn-primary">Reset</button>
+                </form>
             </div>
             
+            <div th:if="${error}" class="alert alert-danger mt-4" th:text="${error}"></div>
             <div th:if="${importResults}" class="import-results mt-4">
                 <div class="card">
                     <div class="card-header">

@@ -55,6 +55,10 @@ public class ERPNextService {
             .map(Cookie::getValue)
             .orElse(null);
 }
+public void clearCookies() {
+        cookieStore.clear();
+        System.out.println("Cookies cleared in CookieStore.");
+    }
 
     public void checkSessionOrThrow() {
         if (!isSessionValid()) {

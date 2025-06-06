@@ -9,10 +9,12 @@
 <body class="bg-gray-100">
     <!-- Include Sidebar -->
    <div th:replace="~{sidebar :: sidebar}"></div>
+   
 
     <!-- Main Content -->
     <div class="ml-64 p-6">
         <h2 class="text-2xl font-bold mb-4">Employees</h2>
+        <a href="/logout">Logout</a>
         <form th:action="@{/employees}" method="get" class="mb-4">
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>

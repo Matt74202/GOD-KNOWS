@@ -28,34 +28,56 @@ public class ERPNextController {
     @Autowired
     private ERPNextService erpNextService;
 
+    // Redirect root URL to /login
+    @GetMapping("/")
+    public String redirectToLogin() {
+        return "redirect:/login";
+    }
+
     @GetMapping("/login")
     public String showLoginPage() {
         return "login";
     }
 
-@PostMapping("/login")
-public String login(@RequestParam String username, @RequestParam String password, 
-                   HttpSession session, Model model) {
-    try {
-        String result = erpNextService.validateUserCredentials(username, password);
-        if (result == null) {
-            // Récupérer le SID du cookie store et le stocker en session
-            String sid = erpNextService.getSessionId();
-            if (sid != null) {
-                session.setAttribute("sid", sid);
+    @PostMapping("/login")
+    public String login(@RequestParam String username, @RequestParam String password, 
+                       HttpSession session, Model model) {
+        try {
+            String result = erpNextService.validateUserCredentials(username, password);
+            if (result == null) {
+                String sid = erpNextService.getSessionId();
+                if (sid != null) {
+                    session.setAttribute("sid", sid);
+                }
+                return "redirect:/employees";
+            } else {
+                model.addAttribute("error", result);
+                return "login";
             }
-            return "redirect:/employees";
-        } else {
-            model.addAttribute("error", result);
+        } catch (RuntimeException e) {
+            model.addAttribute("error", "Authentication failed: " + e.getMessage());
             return "login";
         }
-    } catch (RuntimeException e) {
-        model.addAttribute("error", "Authentication failed: " + e.getMessage());
-        return "login";
+    }    
+    @GetMapping("/logout")
+    public String logout(HttpSession session, Model model) {
+        try {
+            // Invalidate the HTTP session
+            session.invalidate();
+            // Clear cookies using ERPNextService method
+            erpNextService.clearCookies();
+            System.out.println("Session invalidated and cookies cleared on logout.");
+            model.addAttribute("message", "You have been logged out successfully.");
+            return "redirect:/login";
+        } catch (Exception e) {
+            System.err.println("Error during logout: " + e.getMessage());
+            model.addAttribute("error", "Error during logout: " + e.getMessage());
+            return "login";
+        }
     }
-}    
 
-@GetMapping("/employees")
+    // Other methods remain unchanged
+    @GetMapping("/employees")
     public String listEmployees(@RequestParam(required = false) String search,
                                @RequestParam(required = false) String firstName,
                                @RequestParam(required = false) String lastName,
@@ -66,11 +88,15 @@ public String login(@RequestParam String username, @RequestParam String password
                                @RequestParam(required = false) String dateOfJoining,
                                @RequestParam(required = false) String dateOfBirth,
                                @RequestParam(required = false) String employmentType,
-                               Model model) {
+                               Model model, HttpSession session) {
         try {
+            // Check session validity
+            if (!erpNextService.isSessionValid()) {
+                return "redirect:/login?error=Session expired or invalid. Please login again.";
+            }
             Map<String, String> filters = new HashMap<>();
             if (search != null && !search.isEmpty()) {
-                filters.put("first_name", search); // Maintain compatibility with existing search
+                filters.put("first_name", search);
             }
             if (firstName != null && !firstName.isEmpty()) filters.put("first_name", firstName);
             if (lastName != null && !lastName.isEmpty()) filters.put("last_name", lastName);
@@ -108,9 +134,13 @@ public String login(@RequestParam String username, @RequestParam String password
             return "redirect:/login?error=" + e.getMessage();
         }
     }
+
     @GetMapping("/employee/{id}")
-    public String employeeDetails(@PathVariable String id, Model model) {
+    public String employeeDetails(@PathVariable String id, Model model, HttpSession session) {
         try {
+            if (!erpNextService.isSessionValid()) {
+                return "redirect:/login?error=Session expired or invalid. Please login again.";
+            }
             Employee employee = erpNextService.getEmployeeDetails(id);
             model.addAttribute("employee", employee);
             return "employee_details";
@@ -120,8 +150,11 @@ public String login(@RequestParam String username, @RequestParam String password
     }
 
     @GetMapping("/payslip/{employeeId}/{month}")
-    public String payslip(@PathVariable String employeeId, @PathVariable String month, Model model) {
+    public String payslip(@PathVariable String employeeId, @PathVariable String month, Model model, HttpSession session) {
         try {
+            if (!erpNextService.isSessionValid()) {
+                return "redirect:/login?error=Session expired or invalid. Please login again.";
+            }
             Payslip payslip = erpNextService.getPayslip(employeeId, month);
             model.addAttribute("payslip", payslip);
             return "payslip";
@@ -131,8 +164,11 @@ public String login(@RequestParam String username, @RequestParam String password
     }
 
     @GetMapping("/payslips")
-    public String monthlyPayslips(@RequestParam(required = false) String month, Model model) {
+    public String monthlyPayslips(@RequestParam(required = false) String month, Model model, HttpSession session) {
         try {
+            if (!erpNextService.isSessionValid()) {
+                return "redirect:/login?error=Session expired or invalid. Please login again.";
+            }
             List<Payslip> payslips = erpNextService.getMonthlyPayslips(month);
             model.addAttribute("payslips", payslips);
             model.addAttribute("month", month);
@@ -143,119 +179,10 @@ public String login(@RequestParam String username, @RequestParam String password
     }
 
     @GetMapping("/monthly-payslips")
-    public String viewMonthlyPayslips() {
+    public String viewMonthlyPayslips(HttpSession session) {
+        if (!erpNextService.isSessionValid()) {
+            return "redirect:/login?error=Session expired or invalid. Please login again.";
+        }
         return "redirect:/payslips";
     }
-
-// @PostMapping("/import")
-// public String importCSV(@RequestParam("file") MultipartFile file, 
-//                        HttpSession session, 
-//                        Model model) {
-//     try {
-//         String sid = (String) session.getAttribute("sid");
-//         if (sid == null) {
-//             return "redirect:/login?error=Missing session ID";
-//         }
-        
-//         if (file.isEmpty()) {
-//             model.addAttribute("error", "Uploaded file is empty");
-//             return "employee_list";
-//         }
-
-//         List<String> results = new ArrayList<>();
-        
-//         try (BufferedReader reader = new BufferedReader(new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8))) {
-//             String line;
-//             boolean firstLine = true; // To skip header
-//             while ((line = reader.readLine()) != null) {
-//                 if (firstLine) {
-//                     firstLine = false; // Skip the header row
-//                     continue;
-//                 }
-                
-//                 // Split the CSV line (assuming comma-separated)
-//                 String[] fields = line.split(",");
-//                 if (fields.length < 7) {
-//                     results.add("Error: Invalid CSV format for line: " + line);
-//                     continue;
-//                 }
-
-//                 // Map CSV fields to employee data
-//                 Map<String, Object> employeeData = new HashMap<>();
-//                 employeeData.put("name", fields[0].trim()); // Ref
-//                 employeeData.put("last_name", fields[1].trim()); // Nom
-//                 employeeData.put("first_name", fields[2].trim()); // Prenom
-//                 employeeData.put("employee_name", fields[2].trim() + " " + fields[1].trim()); // Prenom + Nom
-                
-//                 // Map gender values
-//                 String csvGender = fields[3].trim(); // genre
-//                 String erpNextGender;
-//                 switch (csvGender) {
-//                     case "Masculin":
-//                         erpNextGender = "Male";
-//                         break;
-//                     case "Feminin":
-//                         erpNextGender = "Female";
-//                         break;
-//                     default:
-//                         results.add("Error: Invalid gender value '" + csvGender + "' for employee: " + employeeData.get("employee_name"));
-//                         continue; // Skip invalid gender
-//                 }
-//                 employeeData.put("gender", erpNextGender); // Set ERPNext-compatible gender
-
-//                 // Convert dates from DD/MM/YYYY to YYYY-MM-DD
-//                 String csvDateOfJoining = fields[4].trim(); // Date embauche
-//                 if (!csvDateOfJoining.isEmpty()) {
-//                     String[] dateParts = csvDateOfJoining.split("/");
-//                     if (dateParts.length == 3) {
-//                         employeeData.put("date_of_joining", dateParts[2] + "-" + dateParts[1] + "-" + dateParts[0]); // e.g., 2024-04-03
-//                     } else {
-//                         results.add("Error: Invalid date_of_joining format '" + csvDateOfJoining + "' for employee: " + employeeData.get("employee_name"));
-//                         continue;
-//                     }
-//                 }
-
-//                 String csvDateOfBirth = fields[5].trim(); // date naissance
-//                 if (!csvDateOfBirth.isEmpty()) {
-//                     String[] dateParts = csvDateOfBirth.split("/");
-//                     if (dateParts.length == 3) {
-//                         employeeData.put("date_of_birth", dateParts[2] + "-" + dateParts[1] + "-" + dateParts[0]); // e.g., 1980-01-01
-//                     } else {
-//                         results.add("Error: Invalid date_of_birth format '" + csvDateOfBirth + "' for employee: " + employeeData.get("employee_name"));
-//                         continue;
-//                     }
-//                 }
-
-//                 employeeData.put("company", fields[6].trim()); // company
-//                 employeeData.put("status", "Active"); // Default status
-
-//                 // Call importEmployee to create or check the employee
-//                 ResponseEntity<Map> response = erpNextService.importEmployee(employeeData);
-//                 if (response.getStatusCode().is2xxSuccessful()) {
-//                     Map<String, Object> responseBody = response.getBody();
-//                     String message = (String) responseBody.get("message");
-//                     String employeeId = (String) responseBody.get("employee_id");
-//                     results.add("Success: " + message + " (Employee ID: " + employeeId + ")");
-//                 } else {
-//                     Map<String, Object> responseBody = response.getBody();
-//                     String error = responseBody != null ? (String) responseBody.get("error") : "Unknown error";
-//                     results.add("Failed to import employee: " + employeeData.get("employee_name") + " - " + error);
-//                 }
-//             }
-//         } catch (IOException e) {
-//             model.addAttribute("error", "Error reading CSV file: " + e.getMessage());
-//             return "employee_list";
-//         }
-
-//         model.addAttribute("importResults", results);
-//         model.addAttribute("message", results.isEmpty() ? "CSV imported successfully" : 
-//             "CSV import completed with " + (results.stream().anyMatch(r -> r.startsWith("Failed") || r.startsWith("Error")) ? "issues" : "success"));
-        
-//         return "employee_list"; // Stay on the employee_list page to display results
-
-//     } catch (Exception e) {
-//         model.addAttribute("error", "Unexpected error: " + e.getMessage());
-//         return "employee_list";
-//     }
-// }
 }

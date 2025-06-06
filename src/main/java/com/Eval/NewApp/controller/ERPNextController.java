@@ -207,4 +207,39 @@ public class ERPNextController {
             return "redirect:/login?error=" + e.getMessage();
         }
     }
+     @GetMapping("/api/salary-stats/employee-details")
+    @ResponseBody
+    public ResponseEntity<List<Map<String, Object>>> getEmployeeSalaryDetails(
+            @RequestParam Integer month,
+            @RequestParam(required = false) Integer year,
+            HttpSession session) {
+        try {
+            if (!erpNextService.isSessionValid()) {
+                return ResponseEntity.status(401).body(null);
+            }
+            List<Map<String, Object>> details = erpNextService.getEmployeeSalaryDetails(month, year);
+            return ResponseEntity.ok(details);
+        } catch (RuntimeException e) {
+            System.err.println("Error fetching employee salary details: " + e.getMessage());
+            return ResponseEntity.status(500).body(null);
+        }
+    }
+
+    // New API endpoint for salary evolution
+    @GetMapping("/api/salary-stats/evolution")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getSalaryEvolution(
+            @RequestParam(required = false) Integer year,
+            HttpSession session) {
+        try {
+            if (!erpNextService.isSessionValid()) {
+                return ResponseEntity.status(401).body(null);
+            }
+            Map<String, Object> evolution = erpNextService.getSalaryEvolution(year);
+            return ResponseEntity.ok(evolution);
+        } catch (RuntimeException e) {
+            System.err.println("Error fetching salary evolution: " + e.getMessage());
+            return ResponseEntity.status(500).body(null);
+        }
+    }
 }

@@ -12,19 +12,18 @@
     <!-- Include Sidebar -->
     <div th:replace="~{sidebar :: sidebar}"></div>
 
-    <!-- Main Content -->
-    <div class="ml-64 p-6">
-        <h2 class="text-2xl font-bold mb-4">Statistiques des salaires</h2>
+    <div class="main-content ml-64 p-6">
+        <h2 class="text-2xl font-semibold mb-4">Statistique des Salaires</h2>
         <a href="/logout" class="text-blue-500 hover:underline">Déconnexion</a>
 
         <!-- Filtre par année -->
         <form th:action="@{/salary-stats}" method="get" class="mb-4">
             <div class="grid grid-cols-1 md:grid-cols-1 gap-4">
                 <div>
-                    <label class="block text-sm font-medium">Filtrer par année</label>
-                    <select name="year" class="p-2 border rounded w-full">
+                    <label for="year" class="block text-sm font-medium">Filtrer par année</label>
+                    <select id="year" name="year" class="p-2 border rounded w-full">
                         <option value="" th:selected="${year == null}">Toutes les années</option>
-                        <option th:each="y : ${years}" th:value="${y}" th:text="${y}" th:selected="${y == year}"></option>
+                        <option th:each="y: ${years}" th:value="${y}" th:text="${y}" th:selected="${y == year}"></option>
                     </select>
                 </div>
             </div>
@@ -41,15 +40,17 @@
             <thead>
                 <tr class="bg-gray-200">
                     <th class="border p-2">Mois</th>
-                    <th class="border p-2">Total des salaires</th>
+                    <th class="border p-2">Total Salaire brut</th>
                     <th class="border p-2">Salaire net</th>
+                    <th class="border p-2">Taxes</th>
                 </tr>
             </thead>
             <tbody>
-                <tr th:each="summary : ${summaries}" class="salary-row" th:data-month="${summary.month}" th:data-year="${year}">
+                <tr th:each="summary: ${summaries}" class="salary-row" th:data-month="${summary.month}" th:data-year="${year}">
                     <td class="border p-2" th:text="${summary.month_name}"></td>
                     <td class="border p-2 total-salary cursor-pointer" th:text="${#numbers.formatDecimal(summary.total_salary, 0, 'COMMA', 2, 'POINT')} + ' MAD'"></td>
                     <td class="border p-2" th:text="${#numbers.formatDecimal(summary.net_salary, 0, 'COMMA', 2, 'POINT')} + ' MAD'"></td>
+                    <td class="border p-2" th:text="${#numbers.formatDecimal(summary.taxes, 0, 'COMMA', 2, 'POINT')} + ' MAD'"></td>
                 </tr>
             </tbody>
         </table>
@@ -60,9 +61,12 @@
             <thead>
                 <tr class="bg-gray-200">
                     <th class="border p-2">Employé</th>
+                    <th class="border p-2">Total Salaire brut</th>
+                     <th class="border p-2">salaire de base</th>
+                     <th class="border p-2">Indemnite</th>
                     <th class="border p-2">Salaire net</th>
-                    <th class="border p-2">Déductions</th>
-                    <th class="border p-2">Total</th>
+                    <th class="border p-2">Taxes</th>
+
                 </tr>
             </thead>
             <tbody></tbody>
@@ -89,9 +93,12 @@
                         tableBody.append(`
                             <tr>
                                 <td class="border p-2">${row.employee_name}</td>
-                                <td class="border p-2">${Number(row.net_salary).toLocaleString('fr-FR', { style: 'currency', currency: 'MAD' })}</td>
-                                <td class="border p-2">${Number(row.deductions).toLocaleString('fr-FR', { style: 'currency', currency: 'MAD' })}</td>
                                 <td class="border p-2">${Number(row.total_salary).toLocaleString('fr-FR', { style: 'currency', currency: 'MAD' })}</td>
+                                <td class="border p-2">${Number(row.basic_salary).toLocaleString('fr-FR', { style: 'currency', currency: 'MAD' })}</td>
+                                <td class="border p-2">${Number(row.allowances).toLocaleString('fr-FR', { style: 'currency', currency: 'MAD' })}</td>
+                                <td class="border p-2">${Number(row.net_salary).toLocaleString('fr-FR', { style: 'currency', currency: 'MAD' })}</td>
+                                <td class="border p-2">${Number(row.taxes).toLocaleString('fr-FR', { style: 'currency', currency: 'MAD' })}</td>
+                                <td class="border p-2">${Number(row.other_deductions).toLocaleString('fr-FR', { style: 'currency', currency: 'MAD' })}</td>
                             </tr>
                         `);
                     });
@@ -112,7 +119,7 @@
                         labels: data.labels,
                         datasets: [
                             {
-                                label: 'Total des salaires',
+                                label: 'Salaire brut',
                                 data: data.total_salary,
                                 borderColor: 'blue',
                                 fill: false
@@ -124,11 +131,12 @@
                                 fill: false
                             },
                             {
-                                label: 'Déductions',
-                                data: data.deductions,
+                                label: 'Taxes',
+                                data: data.taxes,
                                 borderColor: 'red',
                                 fill: false
                             }
+                            
                         ]
                     },
                     options: {

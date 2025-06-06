@@ -40,33 +40,57 @@
             <thead>
                 <tr class="bg-gray-200">
                     <th class="border p-2">Mois</th>
-                    <th class="border p-2">Total Salaire brut</th>
+                    <th class="border p-2">Salaire brut</th>
+                    <th class="border p-2">Salaire de base</th>
+                    <th class="border p-2">Indemnités</th>
                     <th class="border p-2">Salaire net</th>
                     <th class="border p-2">Taxes</th>
+                    <th class="border p-2">Autres déductions</th>
                 </tr>
             </thead>
             <tbody>
                 <tr th:each="summary: ${summaries}" class="salary-row" th:data-month="${summary.month}" th:data-year="${year}">
                     <td class="border p-2" th:text="${summary.month_name}"></td>
                     <td class="border p-2 total-salary cursor-pointer" th:text="${#numbers.formatDecimal(summary.total_salary, 0, 'COMMA', 2, 'POINT')} + ' MAD'"></td>
+                    <td class="border p-2" th:text="${#numbers.formatDecimal(summary.basic_salary, 0, 'COMMA', 2, 'POINT')} + ' MAD'"></td>
+                    <td class="border p-2" th:text="${#numbers.formatDecimal(summary.allowances, 0, 'COMMA', 2, 'POINT')} + ' MAD'"></td>
                     <td class="border p-2" th:text="${#numbers.formatDecimal(summary.net_salary, 0, 'COMMA', 2, 'POINT')} + ' MAD'"></td>
                     <td class="border p-2" th:text="${#numbers.formatDecimal(summary.taxes, 0, 'COMMA', 2, 'POINT')} + ' MAD'"></td>
+                    <td class="border p-2" th:text="${#numbers.formatDecimal(summary.other_deductions, 0, 'COMMA', 2, 'POINT')} + ' MAD'"></td>
                 </tr>
             </tbody>
         </table>
 
-        <!-- Tableau détaillé par employé (caché par défaut) -->
+        <!-- Filtre par mois pour les détails des employés -->
         <h3 class="text-xl font-semibold mt-6 mb-2">Détails par employé</h3>
+        <div class="mb-4">
+            <label for="month-filter" class="block text-sm font-medium">Filtrer par mois</label>
+            <select id="month-filter" class="p-2 border rounded w-full md:w-1/4">
+                <option value="">Sélectionner un mois</option>
+                <option value="1">Janvier</option>
+                <option value="2">Février</option>
+                <option value="3">Mars</option>
+                <option value="4">Avril</option>
+                <option value="5">Mai</option>
+                <option value="6">Juin</option>
+                <option value="7">Juillet</option>
+                <option value="8">Août</option>
+                <option value="9">Septembre</option>
+                <option value="10">Octobre</option>
+                <option value="11">Novembre</option>
+                <option value="12">Décembre</option>
+            </select>
+        </div>
+
+        <!-- Tableau détaillé par employé (caché par défaut) -->
         <table class="w-full border-collapse border hidden" id="employee-details-table">
             <thead>
                 <tr class="bg-gray-200">
                     <th class="border p-2">Employé</th>
-                    <th class="border p-2">Total Salaire brut</th>
-                     <th class="border p-2">salaire de base</th>
-                     <th class="border p-2">Indemnite</th>
+                    <th class="border p-2">Salaire brut</th>
+                    <th class="border p-2">Indemnités</th>
                     <th class="border p-2">Salaire net</th>
                     <th class="border p-2">Taxes</th>
-
                 </tr>
             </thead>
             <tbody></tbody>
@@ -80,10 +104,12 @@
     <!-- Script JavaScript pour les interactions dynamiques -->
     <script>
         $(document).ready(function() {
-            // Charger les détails par employé au clic sur un mois
-            $('.salary-row').on('click', function() {
-                const month = $(this).data('month');
-                const year = $(this).data('year');
+            // Charger les détails par employé au clic sur un mois ou changement du filtre mois
+            function loadEmployeeDetails(month, year) {
+                if (!month) {
+                    $('#employee-details-table').addClass('hidden');
+                    return;
+                }
                 const url = year ? `/api/salary-stats/employee-details?month=${month}&year=${year}` : `/api/salary-stats/employee-details?month=${month}`;
                 
                 $.get(url, function(data) {
@@ -94,18 +120,32 @@
                             <tr>
                                 <td class="border p-2">${row.employee_name}</td>
                                 <td class="border p-2">${Number(row.total_salary).toLocaleString('fr-FR', { style: 'currency', currency: 'MAD' })}</td>
-                                <td class="border p-2">${Number(row.basic_salary).toLocaleString('fr-FR', { style: 'currency', currency: 'MAD' })}</td>
                                 <td class="border p-2">${Number(row.allowances).toLocaleString('fr-FR', { style: 'currency', currency: 'MAD' })}</td>
                                 <td class="border p-2">${Number(row.net_salary).toLocaleString('fr-FR', { style: 'currency', currency: 'MAD' })}</td>
                                 <td class="border p-2">${Number(row.taxes).toLocaleString('fr-FR', { style: 'currency', currency: 'MAD' })}</td>
-                                <td class="border p-2">${Number(row.other_deductions).toLocaleString('fr-FR', { style: 'currency', currency: 'MAD' })}</td>
                             </tr>
                         `);
                     });
                     $('#employee-details-table').removeClass('hidden');
                 }).fail(function() {
                     alert('Erreur lors du chargement des détails.');
+                    $('#employee-details-table').addClass('hidden');
                 });
+            }
+
+            // Clic sur une ligne du tableau récapitulatif
+            $('.salary-row').on('click', function() {
+                const month = $(this).data('month');
+                const year = $(this).data('year');
+                $('#month-filter').val(month); // Mettre à jour le filtre mois
+                loadEmployeeDetails(month, year);
+            });
+
+            // Changement du filtre mois
+            $('#month-filter').on('change', function() {
+                const month = $(this).val();
+                const year = $('[name="year"]').val();
+                loadEmployeeDetails(month, year);
             });
 
             // Charger le graphique d'évolution
@@ -119,15 +159,15 @@
                         labels: data.labels,
                         datasets: [
                             {
-                                label: 'Salaire brut',
-                                data: data.total_salary,
-                                borderColor: 'blue',
+                                label: 'Salaire de base',
+                                data: data.basic_salary,
+                                borderColor: 'purple',
                                 fill: false
                             },
                             {
-                                label: 'Salaire net',
-                                data: data.net_salary,
-                                borderColor: 'green',
+                                label: 'Indemnités',
+                                data: data.allowances,
+                                borderColor: 'orange',
                                 fill: false
                             },
                             {
@@ -135,8 +175,13 @@
                                 data: data.taxes,
                                 borderColor: 'red',
                                 fill: false
+                            },
+                            {
+                                label: 'Autres déductions',
+                                data: data.other_deductions,
+                                borderColor: 'gray',
+                                fill: false
                             }
-                            
                         ]
                     },
                     options: {

@@ -1040,10 +1040,10 @@ public List<Map<String, Object>> getSalarySummary(Integer year) {
         System.out.println("Attempting to fetch salary summary for year: " + year);
         checkSessionOrThrow();
 
-        // Fetch list of salary slip names
+        // Fetch list of salary slip names with limit
         String filters = year != null 
-            ? "&filters=[[\"docstatus\",\"=\",1],[\"posting_date\",\"between\",[\"" + year + "-01-01\",\"" + year + "-12-31\"]]]" 
-            : "&filters=[[\"docstatus\",\"=\",1]]";
+            ? "&filters=[[\"docstatus\",\"=\",1],[\"posting_date\",\"between\",[\"" + year + "-01-01\",\"" + year + "-12-31\"]]]&limit_page_length=100" 
+            : "&filters=[[\"docstatus\",\"=\",1]]&limit_page_length=100";
         
         String listEndpoint = "resource/Salary Slip?fields=[\"name\",\"posting_date\"]" + filters;
         String listUrl = baseUrl + listEndpoint;
@@ -1154,6 +1154,7 @@ public List<Map<String, Object>> getSalarySummary(Integer year) {
         // Sort by month
         summaries.sort(Comparator.comparing(m -> (Integer) m.get("month")));
         
+        System.out.println("Fetched " + summaries.size() + " monthly salary summaries for year " + (year != null ? year : "All") + " (limited to 100 salary slips)");
         return summaries;
     } catch (Exception e) {
         System.err.println("Error processing salary summary: " + e.getMessage());

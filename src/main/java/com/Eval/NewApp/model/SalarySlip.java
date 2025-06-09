@@ -1,22 +1,24 @@
 package com.Eval.NewApp.model;
 
+import com.Eval.NewApp.service.UtilService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 
-import com.Eval.NewApp.service.UtilService;
-
+import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Locale;
 
 public class SalarySlip {
     private static final Logger logger = LoggerFactory.getLogger(SalarySlip.class);
 
     private String month; // Mois (ex. : 01/04/2025)
     private String employeeId; // Ref Employe
-    private String baseSalary; // Salaire Base
+    private Double baseSalary; // Salaire Base (maintenant un Double pour gérer les décimales)
     private String salaryStructure; // Salaire (nom de la structure salariale)
 
     @Autowired
@@ -27,7 +29,7 @@ public class SalarySlip {
     }
 
     // Constructeur avec paramètres
-    public SalarySlip(String month, String employeeId, String baseSalary, String salaryStructure) {
+    public SalarySlip(String month, String employeeId, Double baseSalary, String salaryStructure) {
         this.month = month;
         this.employeeId = employeeId;
         this.baseSalary = baseSalary;
@@ -51,12 +53,23 @@ public class SalarySlip {
         this.employeeId = employeeId;
     }
 
-    public String getBaseSalary() {
+    public Double getBaseSalary() {
         return baseSalary;
     }
 
     public void setBaseSalary(String baseSalary) {
-        this.baseSalary = baseSalary;
+        if (baseSalary == null || baseSalary.trim().isEmpty()) {
+            this.baseSalary = null;
+            return;
+        }
+        try {
+            // Remplacer la virgule par un point pour gérer les formats comme "1500000,30"
+            String normalized = baseSalary.replace(",", ".");
+            this.baseSalary = Double.parseDouble(normalized);
+        } catch (NumberFormatException e) {
+            logger.error("Invalid number format for baseSalary: {}", baseSalary);
+            throw new IllegalArgumentException("Base salary must be a valid number: " + baseSalary);
+        }
     }
 
     public String getSalaryStructure() {
@@ -84,14 +97,11 @@ public class SalarySlip {
         if (employeeId == null || employeeId.trim().isEmpty()) {
             throw new IllegalArgumentException("Employee ID is required");
         }
-        if (baseSalary == null || baseSalary.trim().isEmpty()) {
+        if (baseSalary == null) {
             throw new IllegalArgumentException("Base salary is required");
         }
-        if (!utilService.isNumeric(baseSalary)) {
-            throw new IllegalArgumentException("Base salary must be a valid number: " + baseSalary);
-        }
-        if (Double.parseDouble(baseSalary) <= 0) {
-            throw new IllegalArgumentException("Base salary must be greater than 0");
+        if (baseSalary <= 0) {
+            throw new IllegalArgumentException("Base salary must be greater than 0: " + baseSalary);
         }
         if (salaryStructure == null || salaryStructure.trim().isEmpty()) {
             throw new IllegalArgumentException("Salary structure is required");
@@ -114,12 +124,11 @@ public class SalarySlip {
             List<Map<String, Object>> earnings = new ArrayList<>();
             Map<String, Object> baseEarning = new HashMap<>();
             baseEarning.put("salary_component", "Salaire Base");
-            baseEarning.put("amount", Double.parseDouble(baseSalary));
+            baseEarning.put("amount", baseSalary); // Utiliser directement la valeur Double
             earnings.add(baseEarning);
             data.put("earnings", earnings);
 
             // Pour les autres composants, laisser ERPNext les calculer automatiquement
-            // en se basant sur la structure salariale
             data.put("deductions", new ArrayList<>());
             data.put("timesheets", new ArrayList<>());
             
@@ -135,10 +144,5 @@ public class SalarySlip {
             logger.error("Error converting SalarySlip to Map: {}", e.getMessage());
             throw new IllegalStateException("Failed to convert SalarySlip to Map: " + e.getMessage());
         }
-    }
-
-    private String getCompany() {
-        // Placeholder; ideally fetch via ImportService.getEmployeeCompany
-        return "My Company";
     }
 }

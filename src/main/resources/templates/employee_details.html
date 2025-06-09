@@ -192,12 +192,7 @@
                 `Status: ${document.getElementById('employeeStatus').textContent}`
             ];
             doc.text(employeeInfo, 14, 30);
-
-            // Add payslip table title
-            doc.setFontSize(14);
-            doc.setFont('helvetica', 'bold');
-            doc.text('Payslip Details', 14, 70);
-
+        
             // Create table data with only the selected row
             const headers = ['Payslip ID', 'Month', 'Status', 'Gross Pay', 'Net Pay', 'Total Earnings'];
             const rowData = [

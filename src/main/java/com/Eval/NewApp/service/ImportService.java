@@ -62,7 +62,7 @@ public class ImportService {
     //----------------------------------------------------EMPLOYE-------------------------------------------------------------------------------
     //------------------------------------------------------------------------------------------------------------------------------------------
 
-    public ResponseEntity<Map> importEmployee(Map<String, Object> employeeData, HttpSession session) {
+ public ResponseEntity<Map> importEmployee(Map<String, Object> employeeData, HttpSession session) {
         try {
             String company = (String) employeeData.get("company");
             if (company == null || company.trim().isEmpty()) {
@@ -72,10 +72,26 @@ public class ImportService {
                 return ResponseEntity.badRequest().body(errorResponse);
             }
 
-            // Check and create company
+            // Create Employee object to validate and format data
+            Employee employee = new Employee();
+            employee.setUtilService(utilService);
+            employee.setName((String) employeeData.get("name"));
+            employee.setFirstName((String) employeeData.get("first_name"));
+            employee.setLastName((String) employeeData.get("last_name"));
+            employee.setGenre((String) employeeData.get("gender"));
+            employee.setCompany(company);
+            employee.setDateEmbauche((String) employeeData.get("date_of_joining"));
+            employee.setDateNaissance((String) employeeData.get("date_of_birth"));
+            employee.setStatus((String) employeeData.get("status"));
+            employee.validate();
+
+            // Convert to API payload
+            Map<String, Object> payload = employee.toMap(false);
+            logger.info("Employee API payload: {}", payload);
+
+            // Check if company exists
             List<String> companies = erpNextService.getCompanyList();
             if (!companies.contains(company)) {
-                // Existing company creation logic
                 logger.info("Creating company {}...", company);
                 Map<String, Object> companyData = new HashMap<>();
                 companyData.put("company_name", company);
@@ -86,9 +102,9 @@ public class ImportService {
                 if (holidayListName != null) {
                     companyData.put("default_holiday_list", holidayListName);
                 } else {
-                    logger.error("Failed to create holiday list for company {}", company);
+                    logger.error("Holiday List 'My Company Holiday List 2025' not found for company {}", company);
                     Map<String, Object> errorResponse = new HashMap<>();
-                    errorResponse.put("error", "Failed to create holiday list for company: " + company);
+                    errorResponse.put("error", "Holiday List 'My Company Holiday List 2025' not found for company: " + company);
                     return ResponseEntity.badRequest().body(errorResponse);
                 }
 
@@ -100,16 +116,19 @@ public class ImportService {
                     errorResponse.put("error", "Failed to create company: " + errorMsg);
                     return ResponseEntity.badRequest().body(errorResponse);
                 }
+                logger.info("Company {} created successfully", company);
+            } else {
+                logger.info("Company {} already exists, using existing company", company);
             }
 
             String ref = (String) employeeData.get("name");
             boolean employeeExists = checkEmployeeExists(ref, session);
-            ResponseEntity<Map> response = employeeExists ? updateEmployee(ref, employeeData) : createEmployee(employeeData);
+            ResponseEntity<Map> response = employeeExists ? updateEmployee(ref, employee.toMap(true)) : createEmployee(payload);
 
             if (response.getStatusCode().is2xxSuccessful()) {
                 Map<String, Object> responseBody = response.getBody();
                 Map<String, Object> data = (Map<String, Object>) responseBody.get("data");
-                String erpNextEmployeeId = data != null ? (String) data.get("name") : ref; // Extract ERPNext ID
+                String erpNextEmployeeId = data != null ? (String) data.get("name") : ref;
 
                 // Update refToNameMap
                 @SuppressWarnings("unchecked")
@@ -130,10 +149,15 @@ public class ImportService {
                 errorResponse.put("error", response.getBody() != null ? response.getBody().toString() : "Unknown error");
                 return ResponseEntity.badRequest().body(errorResponse);
             }
-        } catch (Exception e) {
-            logger.error("Error importing employee: {}", e.getMessage());
+        } catch (IllegalArgumentException e) {
+            logger.error("Validation error importing employee: {}", e.getMessage());
             Map<String, Object> errorResponse = new HashMap<>();
-            errorResponse.put("error", e.getMessage());
+            errorResponse.put("error", "Validation error: " + e.getMessage());
+            return ResponseEntity.badRequest().body(errorResponse);
+        } catch (Exception e) {
+            logger.error("Unexpected error importing employee: {}", e.getMessage());
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Unexpected error: " + e.getMessage());
             return ResponseEntity.badRequest().body(errorResponse);
         }
     }
@@ -142,17 +166,31 @@ public class ImportService {
         if (employee.getFirstName() == null || employee.getFirstName().trim().isEmpty()) {
             throw new IllegalArgumentException("First name is required");
         }
-        if (employee.getGender() == null || employee.getGender().trim().isEmpty()) {
+        if (employee.getGenre() == null || employee.getGenre().trim().isEmpty()) {
             throw new IllegalArgumentException("Gender is required");
         }
-        if (employee.getDateOfBirth() == null) {
+        if (employee.getDateNaissance() == null || employee.getDateNaissance().trim().isEmpty()) {
             throw new IllegalArgumentException("Date of birth is required");
         }
-        if (employee.getDateOfJoining() == null) {
+        if (employee.getDateEmbauche() == null || employee.getDateEmbauche().trim().isEmpty()) {
             throw new IllegalArgumentException("Date of joining is required");
         }
         if (employee.getCompany() == null || employee.getCompany().trim().isEmpty()) {
             throw new IllegalArgumentException("Company is required");
+        }
+        // Validate date formats
+        if (employee.getUtilService() == null) {
+            throw new IllegalStateException("UtilService is not set");
+        }
+        try {
+            employee.getUtilService().getFormattedDate(employee.getDateEmbauche());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Invalid date format for Date embauche: " + employee.getDateEmbauche());
+        }
+        try {
+            employee.getUtilService().getFormattedDate(employee.getDateNaissance());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Invalid date format for Date naissance: " + employee.getDateNaissance());
         }
     }
 
@@ -292,9 +330,7 @@ public class ImportService {
         try {
             erpNextService.checkSessionOrThrow();
 
-            int currentYear = Calendar.getInstance().get(Calendar.YEAR);
-            String holidayListName = String.format("%s Holiday List %d", companyName, currentYear);
-
+            String holidayListName = "My Company Holiday List 2025";
             String endpoint = "resource/Holiday List";
             String url = baseUrl + endpoint + "?fields=[\"name\"]&filters=[[\"name\",\"=\",\"" + holidayListName + "\"]]";
             HttpHeaders headers = new HttpHeaders();
@@ -307,35 +343,15 @@ public class ImportService {
             if (checkResponse.getStatusCode().is2xxSuccessful() && !existingHolidayLists.isEmpty()) {
                 logger.info("Holiday List '{}' already exists for company '{}'", holidayListName, companyName);
                 return holidayListName;
-            }
-
-            Map<String, Object> holidayListPayload = new HashMap<>();
-            holidayListPayload.put("holiday_list_name", holidayListName);
-            holidayListPayload.put("from_date", String.format("%d-01-01", currentYear));
-            holidayListPayload.put("to_date", String.format("%d-12-31", currentYear));
-            List<Map<String, Object>> holidays = new ArrayList<>();
-            Map<String, Object> sampleHoliday = new HashMap<>();
-            sampleHoliday.put("description", "New Year's Day");
-            sampleHoliday.put("holiday_date", String.format("%d-01-01", currentYear));
-            holidays.add(sampleHoliday);
-            holidayListPayload.put("holidays", holidays);
-
-            String createEndpoint = baseUrl + "resource/Holiday List";
-            HttpEntity<Map<String, Object>> createRequest = new HttpEntity<>(holidayListPayload, headers);
-            ResponseEntity<Map> createResponse = restTemplate.postForEntity(createEndpoint, createRequest, Map.class);
-
-            if (createResponse.getStatusCode().is2xxSuccessful()) {
-                logger.info("Created Holiday List: {}", holidayListName);
-                return holidayListName;
             } else {
-                logger.error("Failed to create Holiday List '{}': HTTP {}", holidayListName, createResponse.getStatusCode());
+                logger.error("Holiday List '{}' does not exist for company '{}'", holidayListName, companyName);
                 return null;
             }
         } catch (HttpClientErrorException e) {
-            logger.error("HTTP Error creating Holiday List for company {}: {}", companyName, e.getResponseBodyAsString());
+            logger.error("HTTP Error checking Holiday List for company {}: {}", companyName, e.getResponseBodyAsString());
             return null;
         } catch (Exception e) {
-            logger.error("Error creating Holiday List for company {}: {}", companyName, e.getMessage());
+            logger.error("Error checking Holiday List for company {}: {}", companyName, e.getMessage());
             return null;
         }
     }
@@ -391,213 +407,215 @@ public class ImportService {
     //------------------------------------------------------------------------------------------------------------------------------------------
 
     public ResponseEntity<Map> importSalaryStructure(List<Map<String, Object>> componentDataList) {
-    try {
-        logger.info("Processing salary structure with {} components", componentDataList.size());
+        try {
+            logger.info("Processing salary structure with {} components", componentDataList.size());
 
-        // Validate input
-        if (componentDataList == null || componentDataList.isEmpty()) {
-            logger.error("Component data list is null or empty");
-            Map<String, Object> errorResponse = new HashMap<>();
-            errorResponse.put("error", "Component data list cannot be null or empty");
-            return ResponseEntity.badRequest().body(errorResponse);
-        }
-
-        // Group components by salary structure and company
-        Map<String, List<Map<String, Object>>> structureComponentsMap = new HashMap<>();
-        Map<String, String> structureCompanyMap = new HashMap<>();
-        List<String> results = new ArrayList<>();
-
-        for (Map<String, Object> component : componentDataList) {
-            String salaryStructure = (String) component.get("salary_structure");
-            String company = (String) component.get("company");
-            String key = salaryStructure + "_" + company;
-
-            structureComponentsMap.computeIfAbsent(key, k -> new ArrayList<>()).add(component);
-            structureCompanyMap.putIfAbsent(key, company);
-        }
-
-        // Process each salary structure
-        for (Map.Entry<String, List<Map<String, Object>>> entry : structureComponentsMap.entrySet()) {
-            String[] keyParts = entry.getKey().split("_");
-            String salaryStructureName = keyParts[0];
-            String company = structureCompanyMap.get(entry.getKey());
-            List<Map<String, Object>> components = entry.getValue();
-
-            // Check and create company
-            List<String> companies = erpNextService.getCompanyList();
-            if (!companies.contains(company)) {
-                logger.info("Creating company {}...", company);
-                Map<String, Object> companyData = new HashMap<>();
-                companyData.put("name", company);
-                companyData.put("company_name", company);
-                companyData.put("default_currency", "MAD");
-                companyData.put("country", "Madagascar");
-
-                String holidayListName = createDefaultHolidayList(company);
-                if (holidayListName != null) {
-                    companyData.put("default_holiday_list", holidayListName);
-                } else {
-                    logger.error("Failed to create holiday list for company {}", company);
-                    results.add("Failed to create holiday list for company: " + company);
-                    continue;
-                }
-
-                ResponseEntity<Map> companyResponse = createCompany(companyData);
-                if (!companyResponse.getStatusCode().is2xxSuccessful()) {
-                    String errorMsg = companyResponse.getBody() != null ? companyResponse.getBody().toString() : "Unknown error";
-                    logger.error("Failed to create company {}: {}", company, errorMsg);
-                    results.add("Failed to create company: " + errorMsg);
-                    continue;
-                }
-                logger.info("Company {} created successfully", company);
+            // Validate input
+            if (componentDataList == null || componentDataList.isEmpty()) {
+                logger.error("Component data list is null or empty");
+                Map<String, Object> errorResponse = new HashMap<>();
+                errorResponse.put("error", "Component data list cannot be null or empty");
+                return ResponseEntity.badRequest().body(errorResponse);
             }
 
-            // Step 1: Create or update Salary Components
-            for (Map<String, Object> component : components) {
-                int lineNumber = components.indexOf(component) + 2;
-                try {
-                    String componentName = (String) component.get("name");
-                    String normalizedName = utilService.normalizeName(componentName);
-                    boolean componentExists = checkComponentExists(normalizedName);
-                    logger.info("Attempting to {} component {} (normalized: {})",
-                            componentExists ? "update" : "create", componentName, normalizedName);
+            // Group components by salary structure and company
+            Map<String, List<Map<String, Object>>> structureComponentsMap = new HashMap<>();
+            Map<String, String> structureCompanyMap = new HashMap<>();
+            List<String> results = new ArrayList<>();
 
-                    String endpoint = "resource/Salary Component" + (componentExists ? "/" + normalizedName : "");
+            for (Map<String, Object> component : componentDataList) {
+                String salaryStructure = (String) component.get("salary_structure");
+                String company = (String) component.get("company");
+                String key = salaryStructure + "_" + company;
+
+                structureComponentsMap.computeIfAbsent(key, k -> new ArrayList<>()).add(component);
+                structureCompanyMap.putIfAbsent(key, company);
+            }
+
+            // Process each salary structure
+            for (Map.Entry<String, List<Map<String, Object>>> entry : structureComponentsMap.entrySet()) {
+                String[] keyParts = entry.getKey().split("_");
+                String salaryStructureName = keyParts[0];
+                String company = structureCompanyMap.get(entry.getKey());
+                List<Map<String, Object>> components = entry.getValue();
+
+                // Check if company exists
+                List<String> companies = erpNextService.getCompanyList();
+                if (!companies.contains(company)) {
+                    logger.info("Creating company {}...", company);
+                    Map<String, Object> companyData = new HashMap<>();
+                    companyData.put("name", company);
+                    companyData.put("company_name", company);
+                    companyData.put("default_currency", "MAD");
+                    companyData.put("country", "Madagascar");
+
+                    String holidayListName = createDefaultHolidayList(company);
+                    if (holidayListName != null) {
+                        companyData.put("default_holiday_list", holidayListName);
+                    } else {
+                        logger.error("Holiday List 'My Company Holiday List 2025' not found for company {}", company);
+                        results.add("Holiday List 'My Company Holiday List 2025' not found for company: " + company);
+                        continue;
+                    }
+
+                    ResponseEntity<Map> companyResponse = createCompany(companyData);
+                    if (!companyResponse.getStatusCode().is2xxSuccessful()) {
+                        String errorMsg = companyResponse.getBody() != null ? companyResponse.getBody().toString() : "Unknown error";
+                        logger.error("Failed to create company {}: {}", company, errorMsg);
+                        results.add("Failed to create company: " + errorMsg);
+                        continue;
+                    }
+                    logger.info("Company {} created successfully", company);
+                } else {
+                    logger.info("Company {} already exists, using existing company", company);
+                }
+
+                // Step 1: Create or update Salary Components
+                for (Map<String, Object> component : components) {
+                    int lineNumber = components.indexOf(component) + 2;
+                    try {
+                        String componentName = (String) component.get("name");
+                        String normalizedName = utilService.normalizeName(componentName);
+                        boolean componentExists = checkComponentExists(normalizedName);
+                        logger.info("Attempting to {} component {} (normalized: {})",
+                                componentExists ? "update" : "create", componentName, normalizedName);
+
+                        String endpoint = "resource/Salary Component" + (componentExists ? "/" + normalizedName : "");
+                        String url = baseUrl + endpoint;
+                        HttpHeaders headers = new HttpHeaders();
+                        headers.setContentType(MediaType.APPLICATION_JSON);
+
+                        Map<String, Object> componentPayload = new HashMap<>();
+                        componentPayload.put("salary_component", componentName);
+                        componentPayload.put("salary_component_abbr", component.get("abbr"));
+                        componentPayload.put("type", component.get("type").toString().equalsIgnoreCase("Earning") ? "Earning" : "Deduction");
+                        String valeur = (String) component.get("valeur");
+                        if (valeur != null && !valeur.isEmpty() && !valeur.equalsIgnoreCase("base")) {
+                            componentPayload.put("depends_on_payment_days", 0);
+                            componentPayload.put("is_tax_applicable", 0);
+                        } else if (valeur != null && valeur.equalsIgnoreCase("base")) {
+                            componentPayload.put("depends_on_payment_days", 1);
+                        }
+
+                        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(componentPayload, headers);
+                        ResponseEntity<Map> response = restTemplate.exchange(url, componentExists ? HttpMethod.PUT : HttpMethod.POST, entity, Map.class);
+
+                        if (response.getStatusCode().is2xxSuccessful()) {
+                            results.add(String.format("Line %d: Component %s successfully %s",
+                                    lineNumber, componentName, componentExists ? "updated" : "created"));
+                            logger.info("Line {}: Component {} successfully {}", lineNumber, componentName, componentExists ? "updated" : "created");
+                        } else {
+                            String errorMsg = response.getBody() != null ? response.getBody().toString() : "Unknown error";
+                            results.add(String.format("Line %d: Failed to %s component %s: %s",
+                                    lineNumber, componentExists ? "update" : "create", componentName, errorMsg));
+                            logger.error("Line {}: Failed to {} component {}: {}", lineNumber, componentExists ? "update" : "create", componentName, errorMsg);
+                        }
+                    } catch (HttpClientErrorException e) {
+                        String errorMsg = e.getResponseBodyAsString();
+                        if (errorMsg.contains("DuplicateEntryError")) {
+                            logger.info("Duplicate entry for component {}. Using existing component...", component.get("name"));
+                            results.add(String.format("Line %d: Component %s already exists, using existing component",
+                                    lineNumber, component.get("name")));
+                        } else {
+                            results.add(String.format("Line %d: API error for component %s: %s", lineNumber, component.get("name"), errorMsg));
+                            logger.error("Line {}: API error for component {}: {}", lineNumber, component.get("name"), errorMsg);
+                        }
+                    } catch (Exception e) {
+                        results.add(String.format("Line %d: Error processing component %s: %s", lineNumber, component.get("name"), e.getMessage()));
+                        logger.error("Line {}: Error processing component {}: {}", lineNumber, component.get("name"), e.getMessage());
+                    }
+                }
+
+                // Step 2: Create or update Salary Structure
+                try {
+                    boolean structureExists = checkStructureExists(salaryStructureName);
+                    logger.info("Attempting to {} salary structure: {}", structureExists ? "update" : "create", salaryStructureName);
+
+                    Map<String, Object> data = new HashMap<>();
+                    data.put("doctype", "Salary Structure");
+                    data.put("name", salaryStructureName);
+                    data.put("company", company);
+                    data.put("payroll_frequency", "Monthly");
+                    data.put("is_active", "Yes");
+
+                    List<Map<String, Object>> earnings = new ArrayList<>();
+                    List<Map<String, Object>> deductions = new ArrayList<>();
+
+                    for (Map<String, Object> component : components) {
+                        Map<String, Object> child = new HashMap<>();
+                        child.put("salary_component", component.get("name"));
+                        child.put("salary_component_abbr", component.get("abbr"));
+                        child.put("amount_based_on_formula", true);
+                        String valeur = (String) component.get("valeur");
+                        if (!valeur.equalsIgnoreCase("base")) {
+                            child.put("formula", valeur);
+                            child.put("depends_on_payment_days", 0);
+                        } else {
+                            child.put("formula", "base");
+                            child.put("depends_on_payment_days", 1);
+                        }
+                        if (component.get("type").toString().equalsIgnoreCase("Earning")) {
+                            earnings.add(child);
+                            child.put("is_tax_applicable", true);
+                        } else {
+                            deductions.add(child);
+                        }
+                    }
+
+                    data.put("earnings", earnings);
+                    data.put("deductions", deductions);
+                    logger.debug("Salary structure payload: {}", data);
+
+                    String endpoint = "resource/Salary Structure" + (structureExists ? "/" + salaryStructureName : "");
                     String url = baseUrl + endpoint;
                     HttpHeaders headers = new HttpHeaders();
                     headers.setContentType(MediaType.APPLICATION_JSON);
+                    HttpEntity<Map<String, Object>> entity = new HttpEntity<>(data, headers);
 
-                    Map<String, Object> componentPayload = new HashMap<>();
-                    componentPayload.put("salary_component", componentName);
-                    componentPayload.put("salary_component_abbr", component.get("abbr"));
-                    componentPayload.put("type", component.get("type").toString().equalsIgnoreCase("Earning") ? "Earning" : "Deduction");
-                    String valeur = (String) component.get("valeur");
-                    if (valeur != null && !valeur.isEmpty() && !valeur.equalsIgnoreCase("base")) {
-                        componentPayload.put("depends_on_payment_days", 0);
-                        componentPayload.put("is_tax_applicable", 0);
-                    } else if (valeur != null && valeur.equalsIgnoreCase("base")) {
-                        componentPayload.put("depends_on_payment_days", 1);
-                    }
-
-                    HttpEntity<Map<String, Object>> entity = new HttpEntity<>(componentPayload, headers);
-                    ResponseEntity<Map> response = restTemplate.exchange(url, componentExists ? HttpMethod.PUT : HttpMethod.POST, entity, Map.class);
+                    logger.info("Sending {} request to: {}", structureExists ? "PUT" : "POST", url);
+                    ResponseEntity<Map> response = restTemplate.exchange(url, structureExists ? HttpMethod.PUT : HttpMethod.POST, entity, Map.class);
 
                     if (response.getStatusCode().is2xxSuccessful()) {
-                        results.add(String.format("Line %d: Component %s successfully %s",
-                                lineNumber, componentName, componentExists ? "updated" : "created"));
-                        logger.info("Line {}: Component {} successfully {}", lineNumber, componentName, componentExists ? "updated" : "created");
+                        results.add(String.format("Structure %s successfully %s", salaryStructureName, structureExists ? "updated" : "created"));
+                        logger.info("Structure {} successfully {}", salaryStructureName, structureExists ? "updated" : "created");
+
+                        ResponseEntity<Map> submitResponse = submitResource("Salary Structure", salaryStructureName);
+                        if (submitResponse.getStatusCode().is2xxSuccessful()) {
+                            results.add(String.format("Structure %s successfully submitted", salaryStructureName));
+                            logger.info("Structure {} successfully submitted", salaryStructureName);
+                        } else {
+                            String errorMsg = submitResponse.getBody() != null ? submitResponse.getBody().toString() : "Unknown error";
+                            results.add(String.format("Failed to submit structure %s: %s", salaryStructureName, errorMsg));
+                            logger.error("Failed to submit structure {}: {}", salaryStructureName, errorMsg);
+                        }
                     } else {
                         String errorMsg = response.getBody() != null ? response.getBody().toString() : "Unknown error";
-                        results.add(String.format("Line %d: Failed to %s component %s: %s",
-                                lineNumber, componentExists ? "update" : "create", componentName, errorMsg));
-                        logger.error("Line {}: Failed to {} component {}: {}", lineNumber, componentExists ? "update" : "create", componentName, errorMsg);
+                        results.add(String.format("Failed to %s structure %s: %s",
+                                structureExists ? "update" : "create", salaryStructureName, errorMsg));
+                        logger.error("Failed to {} structure {}: {}", structureExists ? "update" : "create", salaryStructureName, errorMsg);
                     }
                 } catch (HttpClientErrorException e) {
-                    String errorMsg = e.getResponseBodyAsString();
-                    if (errorMsg.contains("DuplicateEntryError")) {
-                        logger.info("Duplicate entry for component {}. Using existing component...", component.get("name"));
-                        results.add(String.format("Line %d: Component %s already exists, using existing component",
-                                lineNumber, component.get("name")));
-                    } else {
-                        results.add(String.format("Line %d: API error for component %s: %s", lineNumber, component.get("name"), errorMsg));
-                        logger.error("Line {}: API error for component {}: {}", lineNumber, component.get("name"), errorMsg);
-                    }
+                    String errorMsg = e.getResponseBodyAsString().isEmpty() ? e.getStatusText() : e.getResponseBodyAsString();
+                    results.add(String.format("API error for structure %s: %s", salaryStructureName, errorMsg));
+                    logger.error("API error for structure {}: {}", salaryStructureName, errorMsg);
                 } catch (Exception e) {
-                    results.add(String.format("Line %d: Error processing component %s: %s", lineNumber, component.get("name"), e.getMessage()));
-                    logger.error("Line {}: Error processing component {}: {}", lineNumber, component.get("name"), e.getMessage());
+                    results.add(String.format("Error processing structure %s: %s", salaryStructureName, e.getMessage()));
+                    logger.error("Error processing structure {}: {}", salaryStructureName, e.getMessage());
                 }
             }
 
-            // Step 2: Create or update Salary Structure
-            try {
-                boolean structureExists = checkStructureExists(salaryStructureName);
-                logger.info("Attempting to {} salary structure: {}", structureExists ? "update" : "create", salaryStructureName);
+            Map<String, Object> responseBody = new HashMap<>();
+            responseBody.put("results", results);
+            responseBody.put("message", "Salary structures processed successfully");
+            return ResponseEntity.ok(responseBody);
 
-                Map<String, Object> data = new HashMap<>();
-                data.put("doctype", "Salary Structure");
-                data.put("name", salaryStructureName);
-                data.put("company", company);
-                data.put("payroll_frequency", "Monthly");
-                data.put("is_active", "Yes");
-
-                List<Map<String, Object>> earnings = new ArrayList<>();
-                List<Map<String, Object>> deductions = new ArrayList<>();
-
-                for (Map<String, Object> component : components) {
-                    Map<String, Object> child = new HashMap<>();
-                    child.put("salary_component", component.get("name"));
-                    child.put("salary_component_abbr", component.get("abbr"));
-                    child.put("amount_based_on_formula", true);
-                    String valeur = (String) component.get("valeur");
-                    if (!valeur.equalsIgnoreCase("base")) {
-                        child.put("formula", valeur);
-                        child.put("depends_on_payment_days", 0);
-                    } else {
-                        child.put("formula", "base");
-                        child.put("depends_on_payment_days", 1);
-                    }
-                    if (component.get("type").toString().equalsIgnoreCase("Earning")) {
-                        earnings.add(child);
-                        child.put("is_tax_applicable", true);
-                    } else {
-                        deductions.add(child);
-                    }
-                }
-
-                data.put("earnings", earnings);
-                data.put("deductions", deductions);
-                logger.debug("Salary structure payload: {}", data);
-
-                String endpoint = "resource/Salary Structure" + (structureExists ? "/" + salaryStructureName : "");
-                String url = baseUrl + endpoint;
-                HttpHeaders headers = new HttpHeaders();
-                headers.setContentType(MediaType.APPLICATION_JSON);
-                HttpEntity<Map<String, Object>> entity = new HttpEntity<>(data, headers);
-
-                logger.info("Sending {} request to: {}", structureExists ? "PUT" : "POST", url);
-                ResponseEntity<Map> response = restTemplate.exchange(url, structureExists ? HttpMethod.PUT : HttpMethod.POST, entity, Map.class);
-
-                if (response.getStatusCode().is2xxSuccessful()) {
-                    results.add(String.format("Structure %s successfully %s", salaryStructureName, structureExists ? "updated" : "created"));
-                    logger.info("Structure {} successfully {}", salaryStructureName, structureExists ? "updated" : "created");
-
-                    ResponseEntity<Map> submitResponse = submitResource("Salary Structure", salaryStructureName);
-                    if (submitResponse.getStatusCode().is2xxSuccessful()) {
-                        results.add(String.format("Structure %s successfully submitted", salaryStructureName));
-                        logger.info("Structure {} successfully submitted", salaryStructureName);
-                    } else {
-                        String errorMsg = submitResponse.getBody() != null ? submitResponse.getBody().toString() : "Unknown error";
-                        results.add(String.format("Failed to submit structure %s: %s", salaryStructureName, errorMsg));
-                        logger.error("Failed to submit structure {}: {}", salaryStructureName, errorMsg);
-                    }
-                } else {
-                    String errorMsg = response.getBody() != null ? response.getBody().toString() : "Unknown error";
-                    results.add(String.format("Failed to %s structure %s: %s",
-                            structureExists ? "update" : "create", salaryStructureName, errorMsg));
-                    logger.error("Failed to {} structure {}: {}", structureExists ? "update" : "create", salaryStructureName, errorMsg);
-                }
-            } catch (HttpClientErrorException e) {
-                String errorMsg = e.getResponseBodyAsString().isEmpty() ? e.getStatusText() : e.getResponseBodyAsString();
-                results.add(String.format("API error for structure %s: %s", salaryStructureName, errorMsg));
-                logger.error("API error for structure {}: {}", salaryStructureName, errorMsg);
-            } catch (Exception e) {
-                results.add(String.format("Error processing structure %s: %s", salaryStructureName, e.getMessage()));
-                logger.error("Error processing structure {}: {}", salaryStructureName, e.getMessage());
-            }
+        } catch (Exception e) {
+            logger.error("Unexpected error importing salary structure: {}", e.getMessage());
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Unexpected error: " + e.getMessage());
+            return ResponseEntity.badRequest().body(errorResponse);
         }
-
-        Map<String, Object> responseBody = new HashMap<>();
-        responseBody.put("results", results);
-        responseBody.put("message", "Salary structures processed successfully");
-        return ResponseEntity.ok(responseBody);
-
-    } catch (Exception e) {
-        logger.error("Unexpected error importing salary structure: {}", e.getMessage());
-        Map<String, Object> errorResponse = new HashMap<>();
-        errorResponse.put("error", "Unexpected error: " + e.getMessage());
-        return ResponseEntity.badRequest().body(errorResponse);
     }
-}
 
     private boolean checkComponentExists(String componentName) {
         try {
@@ -754,7 +772,7 @@ public class ImportService {
                         continue;
                     }
 
-                    String[] fields = line.split(",");
+                    String[] fields = parseCsvLine(line);
                     if (fields.length < 4) {
                         results.add(String.format("Line %d: Invalid number of fields, expected 4, found %d", lineNumber, fields.length));
                         logger.error("Line {}: Invalid number of fields, expected 4, found {}", lineNumber, fields.length);
@@ -790,7 +808,7 @@ public class ImportService {
 
                     // Vérifier et créer une Salary Structure Assignment si nécessaire
                     String payrollDate = utilService.formatDate(utilService.getFormattedDate(salarySlip.getMonth()), "yyyy-MM-dd");
-                    double baseSalary = Double.parseDouble(salarySlip.getBaseSalary());
+                    double baseSalary = salarySlip.getBaseSalary();
                     if (!checkSalaryStructureAssignmentExists(employeeId, salarySlip.getSalaryStructure(), payrollDate, baseSalary)) {
                         boolean assignmentCreated = createSalaryStructureAssignment(salarySlip, lineNumber, results);
                         if (!assignmentCreated) {
@@ -880,6 +898,29 @@ public class ImportService {
         }
 
         return results;
+    }
+
+    // Méthode pour parser une ligne CSV en gérant les guillemets
+    private String[] parseCsvLine(String line) {
+        List<String> fields = new ArrayList<>();
+        boolean inQuotes = false;
+        StringBuilder field = new StringBuilder();
+        for (int i = 0; i < line.length(); i++) {
+            char c = line.charAt(i);
+            if (c == '"') {
+                inQuotes = !inQuotes;
+                continue;
+            }
+            if (c == ',' && !inQuotes) {
+                fields.add(field.toString());
+                field = new StringBuilder();
+            } else {
+                field.append(c);
+            }
+        }
+        // Ajouter le dernier champ
+        fields.add(field.toString());
+        return fields.toArray(new String[0]);
     }
 
     private boolean checkSalarySlipExists(String employeeId, String month) {
@@ -1090,7 +1131,7 @@ public class ImportService {
         try {
             String employeeId = salarySlip.getEmployeeId();
             String payrollDate = utilService.formatDate(utilService.getFormattedDate(salarySlip.getMonth()), "yyyy-MM-dd");
-            double baseSalary = Double.parseDouble(salarySlip.getBaseSalary());
+            double baseSalary = salarySlip.getBaseSalary();
 
             // Vérifier si une affectation existe déjà pour la période exacte et le salaire de base
             if (checkSalaryStructureAssignmentExists(employeeId, salarySlip.getSalaryStructure(), payrollDate, baseSalary)) {

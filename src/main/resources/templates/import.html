@@ -4,96 +4,47 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ERPNext - Import Employees</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <style>
-        .sidebar {
-            width: 250px;
-            height: 100vh;
-            position: fixed;
-            left: 0;
-            top: 0;
-            background-color: #343a40;
-            color: white;
-            padding: 20px;
-        }
-        .main-content {
-            margin-left: 250px;
-            padding: 20px;
-        }
-        .sidebar a {
-            color: rgba(255, 255, 255, 0.8);
-            text-decoration: none;
-            display: block;
-            padding: 10px;
-            border-radius: 5px;
-            margin-bottom: 5px;
-        }
-        .sidebar a:hover {
-            color: white;
-            background-color: rgba(255, 255, 255, 0.1);
-        }
-        .sidebar a i {
-            margin-right: 10px;
-            width: 20px;
-            text-align: center;
-        }
-        .sidebar-title {
-            font-size: 1.2rem;
-            font-weight: bold;
-            margin-bottom: 20px;
-            padding-bottom: 10px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-        }
-    </style>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 </head>
-<body>
+<body class="bg-gray-100">
     <!-- Sidebar -->
     <div th:replace="~{sidebar :: sidebar}"></div>
 
     <!-- Main Content -->
-    <div class="main-content">
-        <div class="container-fluid">
-            <div class="frappe-card no-print import-form">
-                <h2 class="mb-4">Import Employees Data</h2>
-                <form th:action="@{/import}" method="post" enctype="multipart/form-data">
-                    <div class="mb-3">
-                        <label for="employeeCsvFile" class="form-label">Upload Employee CSV</label>
-                        <input type="file" class="form-control" id="employeeCsvFile" name="employeeCsvFile" accept=".csv" required>
-                    </div>
-                    <div class="mb-3">
-                        <label for="salaryStructureCsvFile" class="form-label">Upload Salary Structure CSV</label>
-                        <input type="file" class="form-control" id="salaryStructureCsvFile" name="salaryStructureCsvFile" accept=".csv">
-                    </div>
-                    <div class="mb-3">
-                        <label for="salarySlipCsvFile" class="form-label">Upload Salary Slip CSV</label>
-                        <input type="file" class="form-control" id="salarySlipCsvFile" name="salarySlipCsvFile" accept=".csv">
-                    </div>
-                    <button type="submit" class="btn btn-primary">Import CSV</button>
-                </form>
-                <form th:action="@{/reset-data}" method="post">
-                    <button type="submit" class="btn btn-primary">Reset</button>
-                </form>
-            </div>
-            
-            <div th:if="${error}" class="alert alert-danger mt-4" th:text="${error}"></div>
-            <div th:if="${importResults}" class="import-results mt-4">
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="mb-0">Import Results</h5>
-                    </div>
-                    <div class="card-body">
-                        <ul class="list-group">
-                            <li th:each="result : ${importResults}" class="list-group-item"
-                                th:class="${result.contains('successfully') ? 'list-group-item-success' : 'list-group-item-danger'}"
-                                th:text="${result}"></li>
-                        </ul>
-                    </div>
+    <div class="ml-64 p-6">
+        <h2 class="text-2xl font-bold mb-4">Import Employees Data</h2>
+
+        <div class="bg-white p-6 rounded-lg shadow-md">
+            <form th:action="@{/import}" method="post" enctype="multipart/form-data">
+                <div class="mb-4">
+                    <label for="employeeCsvFile" class="block text-sm font-medium text-gray-700">Upload Employee CSV</label>
+                    <input type="file" class="p-2 border rounded w-full" id="employeeCsvFile" name="employeeCsvFile" accept=".csv" required>
                 </div>
-            </div>
+                <div class="mb-4">
+                    <label for="salaryStructureCsvFile" class="block text-sm font-medium text-gray-700">Upload Salary Structure CSV</label>
+                    <input type="file" class="p-2 border rounded w-full" id="salaryStructureCsvFile" name="salaryStructureCsvFile" accept=".csv">
+                </div>
+                <div class="mb-4">
+                    <label for="salarySlipCsvFile" class="block text-sm font-medium text-gray-700">Upload Salary Slip CSV</label>
+                    <input type="file" class="p-2 border rounded w-full" id="salarySlipCsvFile" name="salarySlipCsvFile" accept=".csv">
+                </div>
+                <button type="submit" class="bg-blue-500 text-white p-2 rounded hover:bg-blue-600">Import CSV</button>
+            </form>
+            <form th:action="@{/reset-data}" method="post" class="mt-4">
+                <button type="submit" class="bg-blue-500 text-white p-2 rounded hover:bg-blue-600">Reset</button>
+            </form>
+        </div>
+
+        <div th:if="${error}" class="text-red-500 mb-4 mt-4" th:text="${error}"></div>
+        <div th:if="${importResults}" class="mt-4">
+            <h3 class="font-bold text-lg mb-2">Import Results:</h3>
+            <ul class="bg-white rounded-lg shadow-md">
+                <li th:each="result : ${importResults}" 
+                    th:class="${result.contains('successfully') ? 'p-2 border-b bg-green-100 text-green-700' : 'p-2 border-b bg-red-100 text-red-700'}" 
+                    th:text="${result}"></li>
+            </ul>
         </div>
     </div>
-    
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

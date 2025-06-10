@@ -62,7 +62,7 @@ public class ImportService {
     //----------------------------------------------------EMPLOYE-------------------------------------------------------------------------------
     //------------------------------------------------------------------------------------------------------------------------------------------
 
- public ResponseEntity<Map> importEmployee(Map<String, Object> employeeData, HttpSession session) {
+    public ResponseEntity<Map> importEmployee(Map<String, Object> employeeData, HttpSession session) {
         try {
             String company = (String) employeeData.get("company");
             if (company == null || company.trim().isEmpty()) {
@@ -71,23 +71,6 @@ public class ImportService {
                 errorResponse.put("error", "Company is required for employee");
                 return ResponseEntity.badRequest().body(errorResponse);
             }
-
-            // Create Employee object to validate and format data
-            Employee employee = new Employee();
-            employee.setUtilService(utilService);
-            employee.setName((String) employeeData.get("name"));
-            employee.setFirstName((String) employeeData.get("first_name"));
-            employee.setLastName((String) employeeData.get("last_name"));
-            employee.setGenre((String) employeeData.get("gender"));
-            employee.setCompany(company);
-            employee.setDateEmbauche((String) employeeData.get("date_of_joining"));
-            employee.setDateNaissance((String) employeeData.get("date_of_birth"));
-            employee.setStatus((String) employeeData.get("status"));
-            employee.validate();
-
-            // Convert to API payload
-            Map<String, Object> payload = employee.toMap(false);
-            logger.info("Employee API payload: {}", payload);
 
             // Check if company exists
             List<String> companies = erpNextService.getCompanyList();
@@ -123,7 +106,7 @@ public class ImportService {
 
             String ref = (String) employeeData.get("name");
             boolean employeeExists = checkEmployeeExists(ref, session);
-            ResponseEntity<Map> response = employeeExists ? updateEmployee(ref, employee.toMap(true)) : createEmployee(payload);
+            ResponseEntity<Map> response = employeeExists ? updateEmployee(ref, employeeData) : createEmployee(employeeData);
 
             if (response.getStatusCode().is2xxSuccessful()) {
                 Map<String, Object> responseBody = response.getBody();
@@ -149,15 +132,10 @@ public class ImportService {
                 errorResponse.put("error", response.getBody() != null ? response.getBody().toString() : "Unknown error");
                 return ResponseEntity.badRequest().body(errorResponse);
             }
-        } catch (IllegalArgumentException e) {
-            logger.error("Validation error importing employee: {}", e.getMessage());
-            Map<String, Object> errorResponse = new HashMap<>();
-            errorResponse.put("error", "Validation error: " + e.getMessage());
-            return ResponseEntity.badRequest().body(errorResponse);
         } catch (Exception e) {
-            logger.error("Unexpected error importing employee: {}", e.getMessage());
+            logger.error("Error importing employee: {}", e.getMessage());
             Map<String, Object> errorResponse = new HashMap<>();
-            errorResponse.put("error", "Unexpected error: " + e.getMessage());
+            errorResponse.put("error", e.getMessage());
             return ResponseEntity.badRequest().body(errorResponse);
         }
     }
@@ -166,31 +144,17 @@ public class ImportService {
         if (employee.getFirstName() == null || employee.getFirstName().trim().isEmpty()) {
             throw new IllegalArgumentException("First name is required");
         }
-        if (employee.getGenre() == null || employee.getGenre().trim().isEmpty()) {
+        if (employee.getGender() == null || employee.getGender().trim().isEmpty()) {
             throw new IllegalArgumentException("Gender is required");
         }
-        if (employee.getDateNaissance() == null || employee.getDateNaissance().trim().isEmpty()) {
+        if (employee.getDateOfBirth() == null) {
             throw new IllegalArgumentException("Date of birth is required");
         }
-        if (employee.getDateEmbauche() == null || employee.getDateEmbauche().trim().isEmpty()) {
+        if (employee.getDateOfJoining() == null) {
             throw new IllegalArgumentException("Date of joining is required");
         }
         if (employee.getCompany() == null || employee.getCompany().trim().isEmpty()) {
             throw new IllegalArgumentException("Company is required");
-        }
-        // Validate date formats
-        if (employee.getUtilService() == null) {
-            throw new IllegalStateException("UtilService is not set");
-        }
-        try {
-            employee.getUtilService().getFormattedDate(employee.getDateEmbauche());
-        } catch (Exception e) {
-            throw new IllegalArgumentException("Invalid date format for Date embauche: " + employee.getDateEmbauche());
-        }
-        try {
-            employee.getUtilService().getFormattedDate(employee.getDateNaissance());
-        } catch (Exception e) {
-            throw new IllegalArgumentException("Invalid date format for Date naissance: " + employee.getDateNaissance());
         }
     }
 

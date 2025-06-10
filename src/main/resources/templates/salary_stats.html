@@ -41,7 +41,6 @@
                 <tr class="bg-gray-200">
                     <th class="border p-2">Mois</th>
                     <th class="border p-2">Salaire brut</th>
-                    <th class="border p-2">Salaire de base</th>
                     <th class="border p-2">Indemnités</th>
                     <th class="border p-2">Salaire net</th>
                     <th class="border p-2">Taxes</th>
@@ -52,7 +51,6 @@
                 <tr th:each="summary: ${summaries}" class="salary-row" th:data-month="${summary.month}" th:data-year="${year}">
                     <td class="border p-2" th:text="${summary.month_name}"></td>
                     <td class="border p-2 total-salary cursor-pointer" th:text="${#numbers.formatDecimal(summary.total_salary, 0, 'COMMA', 2, 'POINT')} + ' MAD'"></td>
-                    <td class="border p-2" th:text="${#numbers.formatDecimal(summary.basic_salary, 0, 'COMMA', 2, 'POINT')} + ' MAD'"></td>
                     <td class="border p-2" th:text="${#numbers.formatDecimal(summary.allowances, 0, 'COMMA', 2, 'POINT')} + ' MAD'"></td>
                     <td class="border p-2" th:text="${#numbers.formatDecimal(summary.net_salary, 0, 'COMMA', 2, 'POINT')} + ' MAD'"></td>
                     <td class="border p-2" th:text="${#numbers.formatDecimal(summary.taxes, 0, 'COMMA', 2, 'POINT')} + ' MAD'"></td>
@@ -91,6 +89,7 @@
                     <th class="border p-2">Indemnités</th>
                     <th class="border p-2">Salaire net</th>
                     <th class="border p-2">Taxes</th>
+                    <th class="border p-2">Autres deductions</th>
                 </tr>
             </thead>
             <tbody></tbody>
@@ -123,6 +122,7 @@
                                 <td class="border p-2">${Number(row.allowances).toLocaleString('fr-FR', { style: 'currency', currency: 'MAD' })}</td>
                                 <td class="border p-2">${Number(row.net_salary).toLocaleString('fr-FR', { style: 'currency', currency: 'MAD' })}</td>
                                 <td class="border p-2">${Number(row.taxes).toLocaleString('fr-FR', { style: 'currency', currency: 'MAD' })}</td>
+                                <td class="border p-2">${Number(row.other_deductions).toLocaleString('fr-FR', { style: 'currency', currency: 'MAD' })}</td>
                             </tr>
                         `);
                     });
@@ -158,12 +158,12 @@
                     data: {
                         labels: data.labels,
                         datasets: [
-                            {
-                                label: 'Salaire de base',
-                                data: data.basic_salary,
-                                borderColor: 'purple',
-                                fill: false
-                            },
+                            // {
+                            //     label: 'Salaire de base',
+                            //     data: data.basic_salary,
+                            //     borderColor: 'purple',
+                            //     fill: false
+                            // },
                             {
                                 label: 'Indemnités',
                                 data: data.allowances,
